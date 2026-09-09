@@ -40,6 +40,23 @@ class CLITests(unittest.TestCase):
             self.assertEqual(main(["status", "--db", str(db), "--json"]), 1)
             self.assertFalse(db.exists())
 
+    def test_expired_snapshot_skipped_then_recovers(self):
+        from unittest.mock import patch, Mock
+        from gptsalov.market import DemoFeed, SnapshotExpired
+        snapshot = DemoFeed().snapshot()
+        snapshot.source = "binance-public"
+        feed = Mock()
+        feed.snapshot.side_effect = [SnapshotExpired("boundary"), snapshot]
+        with tempfile.TemporaryDirectory() as temp, redirect_stdout(StringIO()), \
+             patch("gptsalov.__main__.BinanceFeed", return_value=feed), \
+             patch("gptsalov.__main__.time.sleep"):
+            db = str(Path(temp)/"paper.db")
+            self.assertEqual(main(["run", "--source", "binance", "--db", db, "--cycles", "2"]), 0)
+            state = report(db)
+            self.assertEqual(feed.snapshot.call_count, 2)
+            self.assertIsNone(state["last_error"])
+            self.assertIsNotNone(state["as_of_ms"])
+
 
 if __name__ == "__main__":
     unittest.main()

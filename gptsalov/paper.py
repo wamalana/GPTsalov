@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 import fcntl
@@ -257,7 +258,7 @@ class PaperEngine:
 
 def report(path: str, now_ms=None):
     uri = Path(path).resolve().as_uri()+"?mode=ro"
-    with sqlite3.connect(uri, uri=True) as db:
+    with closing(sqlite3.connect(uri, uri=True)) as db:
         row = db.execute("SELECT data FROM state WHERE id=1").fetchone()
         if row is None:
             raise ValueError("Empty ledger")

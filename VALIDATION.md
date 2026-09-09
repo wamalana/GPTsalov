@@ -1,10 +1,10 @@
-# Validation — GPTsalov v0.1.0
+# Validation — GPTsalov v0.1.1
 
 Date: 2026-09-09. Environment: Linux, Python 3.12.14.
 
 ## Verified locally
 
-- `python3 -m unittest discover -s tests -v`: 66 test methods, all passed.
+- `python3 -m unittest discover -s tests -v`: 69 test methods, all passed locally.
 - `python3 -m compileall -q gptsalov tests`: passed.
 - CLI synthetic run: 180 snapshots, 10 closed paper trades, zero real orders.
 - Synthetic final balance/equity: 99.449089652360 from 100; modeled net result -0.550910347640 USDT. This deliberately unoptimized synthetic sequence is an accounting regression fixture, not evidence for or against market profitability.
@@ -24,9 +24,9 @@ Date: 2026-09-09. Environment: Linux, Python 3.12.14.
 
 ## Not verified / not implemented
 
-- External Binance connectivity: attempted one harmless public server-time request, but network approval was cancelled before a decision. No successful live connection result; no bypass or repeated external attempt.
-- Mock contract tests are not a substitute for verification against current production responses from an authorized machine.
-- Docker build/runtime and GCP deployment were not executed.
+- Initial scratch environment could not reach Binance. Subsequent authorized VPS check on Debian 13 / Python 3.13.5 succeeded: public server time and a full preflight scan (897 returned symbols, 20 shortlisted, 20 histories loaded). Counts describe that snapshot, not a guaranteed future universe.
+- Original 66-test suite passed on the VPS. Python 3.13 revealed an unclosed report connection; v0.1.1 closes it explicitly and adds a regression test. Two additional tests verify expired-snapshot skipping/recovery instead of stopping the loop.
+- Docker build/runtime was not executed. The VPS source/preflight checks are recorded above; the systemd user unit requires verification on activation.
 - No real historical profitability backtest, walk-forward study, calibrated probability, statistical confidence interval or parameter optimization.
 - No account authentication, live/demo exchange orders, actual funding settlements, partial fills, liquidation modeling or realtime risk guarantees.
 - No connected news/LLM, dashboard, external monitoring or ChatGPT automation.

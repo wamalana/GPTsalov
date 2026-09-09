@@ -17,7 +17,8 @@ def main():
     top = {"README.md", "DEPLOY.md", "VALIDATION.md", "config.toml", "pyproject.toml", "Dockerfile", "compose.yaml", ".gitignore", ".dockerignore"}
     files = sorted(p for p in root.rglob("*") if p.is_file() and
                    ((p.parent == root and p.name in top) or
-                    (p.relative_to(root).parts[0] in {"gptsalov", "tests", "scripts"} and p.suffix == ".py")))
+                    (p.relative_to(root).parts[0] in {"gptsalov", "tests", "scripts"} and p.suffix == ".py") or
+                    (p.relative_to(root).parts[0] == "deploy" and p.suffix == ".service")))
     with ZipFile(target, "x", ZIP_DEFLATED) as archive:
         for path in files:
             archive.write(path, "gptsalov/"+path.relative_to(root).as_posix())

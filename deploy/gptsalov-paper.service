@@ -1,0 +1,19 @@
+[Unit]
+Description=GPTsalov Binance public-data paper simulator
+
+[Service]
+Type=simple
+WorkingDirectory=%h/GPTsalov/current
+ExecStart=/usr/bin/python3 -u -m gptsalov run --source binance --config %h/GPTsalov/current/config.toml --db %h/GPTsalov/data/binance-paper.db --cycles 0
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+NoNewPrivileges=yes
+MemoryMax=384M
+Restart=no
+KillSignal=SIGINT
+TimeoutStopSec=25
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

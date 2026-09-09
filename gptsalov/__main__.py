@@ -8,7 +8,7 @@ import time
 
 from . import __version__
 from .core import Config, encode
-from .market import BinanceFeed, BinancePublic, DemoFeed, MarketError
+from .market import BinanceFeed, BinancePublic, DemoFeed, MarketError, SnapshotExpired
 from .paper import PaperEngine, Store, report
 
 
@@ -74,6 +74,14 @@ def main(argv=None):
                 try:
                     snapshot = feed.snapshot(engine.required_symbols())
                     events = engine.step(snapshot)
+                except SnapshotExpired as exc:
+                    engine.fault(str(exc), int(time.time()*1000))
+                    count += 1
+                    print(encode({"cycle": count, "status": "SKIPPED_EXPIRED_SNAPSHOT",
+                                  "error": str(exc), "real_orders": 0}), flush=True)
+                    if args.source == "binance" and (args.cycles == 0 or count < args.cycles):
+                        time.sleep(cfg.poll_seconds)
+                    continue
                 except (MarketError, ValueError) as exc:
                     engine.fault(str(exc), int(time.time()*1000))
                     raise

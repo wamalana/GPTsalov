@@ -225,6 +225,21 @@ class LedgerTests(unittest.TestCase):
             report(missing)
         self.assertFalse(Path(missing).exists())
 
+    def test_report_closes_database_connection(self):
+        import sqlite3
+        from unittest.mock import patch
+        opened = []
+        real_connect = sqlite3.connect
+        def connect(*args, **kwargs):
+            connection = real_connect(*args, **kwargs)
+            opened.append(connection)
+            return connection
+        with patch("gptsalov.paper.sqlite3.connect", side_effect=connect):
+            report(self.path)
+        self.assertEqual(len(opened), 1)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")
+
 
 if __name__ == "__main__":
     unittest.main()

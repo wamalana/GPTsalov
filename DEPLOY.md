@@ -2,6 +2,41 @@
 
 รุ่นนี้เป็น paper simulator เท่านั้น ไม่ต้องใช้ Binance API key คู่มือนี้ยังไม่ใช่หลักฐานว่าได้เชื่อมต่อหรือติดตั้งบน VPS แล้ว
 
+## ทางเลือกสำหรับ VPS ที่มี Python: systemd user service
+
+v0.1.1 มีไฟล์ `deploy/gptsalov-paper.service` รองรับ layout ดังนี้:
+
+```text
+~/GPTsalov/releases/<commit>/   source snapshot ที่ตรวจตรงกับ GitHub
+~/GPTsalov/current             symlink ไปยัง release ที่ใช้
+~/GPTsalov/data/               SQLite และรายงาน แยกจาก source
+```
+
+ต้องติดตั้ง unit ที่ `~/.config/systemd/user/gptsalov-paper.service` และจัด layout ให้เรียบร้อยก่อนเปิดใช้งาน จากนั้นรัน:
+
+```bash
+loginctl --no-ask-password enable-linger "$USER"
+loginctl show-user "$USER" -p Linger
+systemctl --user daemon-reload
+systemctl --user enable --now gptsalov-paper.service
+systemctl --user status gptsalov-paper.service --no-pager
+journalctl --user -u gptsalov-paper.service -n 30 --no-pager
+```
+
+`Linger=yes` ทำให้ user manager ทำงานต่อเมื่อ logout และเริ่มได้ตอน boot หากระบบปฏิเสธการตั้ง linger ต้องให้ผู้ดูแลที่มีสิทธิ์ดำเนินการ ไม่เพิ่มสิทธิ์ sudo หรือเปลี่ยน policy เพื่อเลี่ยงข้อจำกัด
+
+unit รันภายใต้ผู้ใช้ปัจจุบันและจำกัดหน่วยความจำ 384 MB ไม่ใช้ root, ไม่เปิดพอร์ตเข้า และไม่ถือ Binance key ยังคง `Restart=no` เพื่อไม่วนเชื่อมต่อหลัง HTTP block ต้องติดตามสถานะเมื่อ process หยุด
+
+อ่านพอร์ตและหยุดบริการ:
+
+```bash
+cd "$HOME/GPTsalov/current"
+python3 -m gptsalov status --db "$HOME/GPTsalov/data/binance-paper.db" --json
+systemctl --user stop gptsalov-paper.service
+```
+
+ก่อนเปลี่ยน release ให้หยุด service, ตรวจ config hash และสำรองฐานข้อมูล แล้วจึงเปลี่ยน symlink ห้ามลบ state เพื่อปลด risk lock
+
 ## 1. เข้าสู่ VPS
 
 ใช้ SSH username, private key/agent และ host fingerprint ที่ยืนยันจาก GCP ของคุณ หรือเปิด SSH-in-browser จากหน้า VM ใน Google Cloud Console ไม่ส่ง private key, token หรือรหัสผ่านลงแชตหรือ repository

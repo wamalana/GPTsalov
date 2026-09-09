@@ -15,6 +15,10 @@ class MarketError(RuntimeError):
     pass
 
 
+class SnapshotExpired(MarketError):
+    """A consistent snapshot was not completed in time; skip this cycle."""
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise MarketError("Unexpected redirect; refusing to follow")
@@ -156,7 +160,7 @@ class BinanceFeed:
                 rejected[symbol] = "NO_BASELINE_SIGNAL"
         elapsed = int((time.monotonic()-clock_start)*1000)
         if elapsed > self.cfg.max_data_age_ms or (now_ms+elapsed)//BAR_MS != now_ms//BAR_MS:
-            raise MarketError("Snapshot crossed candle boundary or expired; retry next cycle")
+            raise SnapshotExpired("Snapshot crossed candle boundary or expired; retry next cycle")
         signals.sort(key=lambda s: (-s.score, s.symbol))
         return Snapshot(now_ms+elapsed, "binance-public", rules, histories, signals,
                         {"total_symbols": len(exchange["symbols"]), "shortlisted": len(chosen),

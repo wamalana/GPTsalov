@@ -1,4 +1,4 @@
-# GPTsalov v0.1.0 — เริ่มรันระบบทดลอง
+# GPTsalov v0.1.1 — เริ่มรันระบบทดลอง
 
 สร้างวันที่ 9 กันยายน 2026 สำหรับโปรเจกต์ Binance Futures ทุนเริ่มต้น $100
 
@@ -115,7 +115,7 @@ Quantity คำนวณจาก budget หารความเสียหา
 
 ## นำไปเตรียมรันบน GCP
 
-ยังไม่ได้เช่า VM หรือ deploy ให้ ต้องมีโครงการ GCP, งบ, region ที่ใช้งานได้ตามสิทธิ์ และเครื่องที่ติดตั้ง Docker/Compose ก่อน คำสั่งนี้ไม่ต้องใช้ Binance key:
+สำหรับการติดตั้งด้วย Docker ต้องมีโครงการ GCP, งบ, region ที่ใช้งานได้ตามสิทธิ์ และเครื่องที่ติดตั้ง Docker/Compose ก่อน คำสั่งนี้ไม่ต้องใช้ Binance key ส่วนเครื่องที่ใช้ Python โดยตรงสามารถใช้ systemd user service ตาม DEPLOY.md:
 
 ```bash
 docker compose build
@@ -142,6 +142,12 @@ docker compose exec paper python -m gptsalov status --db /data/paper.db --json
 7. เพิ่ม dashboard และช่องทางรายงานที่มี authentication จากนั้นจึงเชื่อมงานตรวจตามเวลาของ ChatGPT
 
 ยังไม่ได้สร้าง schedule, เชื่อม AI/news, ฝากเงิน, เปิดสถานะจริง หรือจัดซื้อบริการใด ๆ
+
+## การติดตั้งด้วย systemd ของผู้ใช้
+
+เพิ่ม unit `deploy/gptsalov-paper.service` สำหรับเครื่อง Linux ที่มี Python พร้อมอยู่แล้ว ไม่ต้องใช้ Docker ดูขั้นตอนและโครงสร้าง release ใน [DEPLOY.md](DEPLOY.md)
+
+v0.1.1 ปิด SQLite connection หลังอ่านรายงาน และข้ามรอบที่ snapshot คาบเกี่ยวเวลาปิดแท่งหรือใช้เวลาเกินกำหนด โดยรอรอบ polling ถัดไป ข้อผิดพลาดด้านสิทธิ์เครือข่าย/HTTP block ยังหยุดโปรแกรมตามเดิม
 
 ## โครงสร้างโค้ด
 

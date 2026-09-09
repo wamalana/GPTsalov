@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gptsalov"
-version = "0.1.0"
+version = "0.1.1"
 description = "Public-data crypto futures research and paper simulation; no real orders"
 requires-python = ">=3.11"
 dependencies = []

@@ -4,7 +4,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 from gptsalov.core import BAR_MS, Config
-from gptsalov.market import BinanceFeed, BinancePublic, DemoFeed, MarketError
+from gptsalov.market import BinanceFeed, BinancePublic, DemoFeed, MarketError, SnapshotExpired
 from test_core import exchange_row
 
 
@@ -93,6 +93,13 @@ class FeedTests(unittest.TestCase):
         with patch.object(client.opener, "open", side_effect=URLError("offline")):
             with self.assertRaisesRegex(MarketError, "request failed"):
                 client.get("/fapi/v1/time")
+
+    def test_expired_snapshot_is_skippable(self):
+        client = FakeClient()
+        with patch("gptsalov.market.time.time", return_value=client.now/1000), \
+             patch("gptsalov.market.time.monotonic", side_effect=[0, 121]):
+            with self.assertRaises(SnapshotExpired):
+                BinanceFeed(Config(), client).snapshot()
 
 
 if __name__ == "__main__":
