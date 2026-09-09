@@ -1,0 +1,9 @@
+__pycache__
+**/__pycache__
+data
+*.db
+*.db-*
+.git
+.env
+.venv
+dist

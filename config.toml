@@ -1,0 +1,21 @@
+# Research assumptions, NOT your Binance account's verified commission rates.
+mode = "paper"
+initial_equity = "100"
+risk_fraction = "0.005"
+leverage = 2
+max_notional_fraction = "1"
+daily_loss_fraction = "0.02"
+drawdown_fraction = "0.08"
+max_consecutive_losses = 3
+fee_bps = "5"
+slippage_bps = "3"
+# Conservative modeled reserve per trade, NOT actual funding payments.
+funding_reserve_bps = "10"
+max_spread_bps = "10"
+min_quote_volume = "10000000"
+min_age_days = 30
+shortlist = 20
+max_hold_bars = 16
+max_entry_drift = "0.005"
+poll_seconds = 60
+max_data_age_ms = 120000

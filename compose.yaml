@@ -1,0 +1,18 @@
+services:
+  paper:
+    build: .
+    command: ["run", "--source", "binance", "--config", "/app/config.toml", "--db", "/data/paper.db", "--cycles", "0"]
+    # Stop on error. Do not repeatedly retry a regional/IP/rate-limit block.
+    restart: "no"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - paper_data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  paper_data:
