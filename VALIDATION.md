@@ -1,4 +1,14 @@
-# Validation — GPTsalov v0.1.1
+# Validation — GPTsalov v0.1.2
+
+2026-09-10: 76 unittest methods pass locally. New coverage verifies long/short
+net reward calculation, inclusive cutoffs, the historical BNB target example,
+deduplication/restart behavior, sidecar error isolation, ledger alias rejection,
+close timestamps and 4-hour boundaries. A 180-snapshot synthetic paired run
+produces identical FULL ledger state and events with and without observation.
+This is software regression evidence, not evidence of profitability or VPS deployment.
+
+The original 69 tests still pass. No risk/config defaults changed. News filtering,
+alternate portfolio simulation and live trading remain unimplemented.
 
 Date: 2026-09-09. Environment: Linux, Python 3.12.14.
 

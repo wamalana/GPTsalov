@@ -10,6 +10,7 @@ from . import __version__
 from .core import Config, encode
 from .market import BinanceFeed, BinancePublic, DemoFeed, MarketError, SnapshotExpired
 from .paper import PaperEngine, Store, report
+from .research import ResearchRecorder, research_report
 
 
 def print_json(value):
@@ -28,12 +29,18 @@ def main(argv=None):
     run.add_argument("--source", choices=("demo", "binance"), default="demo")
     run.add_argument("--config", default=None)
     run.add_argument("--db", required=True)
+    run.add_argument("--research-db", help="Optional separate observation-only SQLite database")
     run.add_argument("--cycles", type=int, default=180, help="0=continuous for Binance, max 380 for demo")
     status = commands.add_parser("status", help="Read-only ledger report; JSON includes data timestamp")
     status.add_argument("--db", required=True)
     status.add_argument("--json", action="store_true")
+    research = commands.add_parser("research-status", help="Read-only net reward/risk experiment report")
+    research.add_argument("--db", required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "research-status":
+            print_json(research_report(args.db))
+            return 0
         if args.command == "check-access":
             print_json({"mode": "READ_ONLY", "binance": BinancePublic().get("/fapi/v1/time")})
             return 0
@@ -64,6 +71,7 @@ def main(argv=None):
         if args.cycles < 0 or (args.source == "demo" and not 1 <= args.cycles <= 380):
             raise ValueError("Demo cycles must be 1–380; Binance cycles must be >= 0")
         source = "synthetic-demo" if args.source == "demo" else "binance-public"
+        recorder = ResearchRecorder(args.research_db, args.db, cfg) if args.research_db else None
         with Store(args.db, cfg, source) as store:
             if args.source == "demo" and store.state["last_close_ms"] is not None:
                 # Resume deterministic generator from the persisted last candle.
@@ -73,6 +81,7 @@ def main(argv=None):
             while args.cycles == 0 or count < args.cycles:
                 try:
                     snapshot = feed.snapshot(engine.required_symbols())
+                    before = store.state
                     events = engine.step(snapshot)
                 except SnapshotExpired as exc:
                     engine.fault(str(exc), int(time.time()*1000))
@@ -85,6 +94,10 @@ def main(argv=None):
                 except (MarketError, ValueError) as exc:
                     engine.fault(str(exc), int(time.time()*1000))
                     raise
+                if recorder:
+                    warning = recorder.observe(snapshot, before, store.state, events)
+                    if warning:
+                        print(encode(warning), file=sys.stderr, flush=True)
                 count += 1
                 if events or count == 1 or count % 20 == 0:
                     print(encode({"cycle": count, "source": source, "equity": store.state["equity"],

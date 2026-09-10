@@ -257,14 +257,17 @@ class PaperEngine:
 
 
 def report(path: str, now_ms=None):
+    now_ms = int(time.time()*1000) if now_ms is None else now_ms
     uri = Path(path).resolve().as_uri()+"?mode=ro"
     with closing(sqlite3.connect(uri, uri=True)) as db:
+        db.execute("BEGIN")
         row = db.execute("SELECT data FROM state WHERE id=1").fetchone()
         if row is None:
             raise ValueError("Empty ledger")
         state = json.loads(row[0])
         counts = dict(db.execute("SELECT kind, COUNT(*) FROM events GROUP BY kind"))
-        trades = [json.loads(r[0]) for r in db.execute("SELECT data FROM events WHERE kind='PAPER_CLOSE' ORDER BY id")]
+        trades = [{**json.loads(data), "close_ms": stamp} for stamp, data in
+                  db.execute("SELECT timestamp_ms,data FROM events WHERE kind='PAPER_CLOSE' ORDER BY id")]
     state["event_counts"] = counts
     state["recent_trades"] = trades[-10:]
     state["net_pnl_estimate"] = str(dec(state["equity"])-dec(state["initial_equity"]))
@@ -278,8 +281,12 @@ def report(path: str, now_ms=None):
     state["news_status"] = "NOT_CONNECTED"
     state["probability_model"] = "NOT_CALIBRATED"
     state["live_trading_supported"] = False
-    now_ms = int(time.time()*1000) if now_ms is None else now_ms
     state["report_generated_ms"] = now_ms
+    window = [t for t in trades if now_ms-4*3600000 <= t['close_ms'] <= now_ms]
+    state['closed_trades_last_4h'] = len(window)
+    state['closed_trade_net_pnl_last_4h'] = str(sum((dec(t['net_pnl']) for t in window), D(0)))
+    state['window_start_ms'] = now_ms-4*3600000
+    state['observed_age_ms'] = now_ms-state['observed_at_ms'] if state['observed_at_ms'] is not None else None
     state["data_age_ms"] = now_ms-state["as_of_ms"] if state["as_of_ms"] is not None else None
     if state["last_error"]:
         state["health"] = "ERROR_MARKS_MAY_BE_STALE"

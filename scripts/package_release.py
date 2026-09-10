@@ -14,7 +14,7 @@ def main():
     if not target.is_absolute():
         raise SystemExit("Output path must be absolute")
     # Deliberate allowlist excludes runtime DBs, caches, credentials and local data.
-    top = {"README.md", "DEPLOY.md", "VALIDATION.md", "config.toml", "pyproject.toml", "Dockerfile", "compose.yaml", ".gitignore", ".dockerignore"}
+    top = {"README.md", "RESEARCH.md", "DEPLOY.md", "VALIDATION.md", "config.toml", "pyproject.toml", "Dockerfile", "compose.yaml", ".gitignore", ".dockerignore"}
     files = sorted(p for p in root.rglob("*") if p.is_file() and
                    ((p.parent == root and p.name in top) or
                     (p.relative_to(root).parts[0] in {"gptsalov", "tests", "scripts"} and p.suffix == ".py") or
