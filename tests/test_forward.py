@@ -1,4 +1,4 @@
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from io import StringIO
 from pathlib import Path
 import tempfile
@@ -33,7 +33,7 @@ class ForwardTests(unittest.TestCase):
             run(d+'/b',Config(),'synthetic-demo',180)
             for n in ('baseline','rr1','rr1_5','rr2'):
                 def state(folder):
-                    with sqlite3.connect(d+'/'+folder+'/'+n+'.db') as c:
+                    with closing(sqlite3.connect(d+'/'+folder+'/'+n+'.db')) as c:
                         return c.execute('SELECT data FROM state').fetchone()[0]
                 self.assertEqual(state('a'),state('b'))
             self.assertEqual(len(status(d+'/a')['portfolios']),4)
