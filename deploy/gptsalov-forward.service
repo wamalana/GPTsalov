@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov independent forward paper experiments
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=/home/wamalana/GPTsalov/forward-current
+ExecStart=/usr/bin/python3 -u -m gptsalov.forward run --directory /home/wamalana/GPTsalov/data/forward-v1 --config /home/wamalana/GPTsalov/forward-current/config.toml
+Restart=no
+MemoryMax=256M
+CPUQuota=40%
+UMask=0077
+NoNewPrivileges=yes
+[Install]
+WantedBy=default.target
