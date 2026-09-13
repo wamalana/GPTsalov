@@ -25,15 +25,22 @@ def setup(api,symbol):
         raise ValueError('Testnet account must be empty before smoke test')
     if api.call('GET','/fapi/v1/positionSide/dual')['dualSidePosition'] is not False:
         raise ValueError('One-way Testnet account required')
-    try:
-        api.call('POST','/fapi/v1/marginType',symbol=symbol,marginType='ISOLATED')
-    except Rejected as exc:
-        if exc.code!=-4046: raise
-    api.call('POST','/fapi/v1/leverage',symbol=symbol,leverage=2)
     rows=api.call('GET','/fapi/v1/symbolConfig',symbol=symbol)
     r=next(x for x in rows if x['symbol']==symbol)
-    if r['marginType'].upper()!='ISOLATED' or int(r['leverage'])!=2:
-        raise ValueError('Testnet settings not confirmed')
+    if r['marginType'].upper()!='ISOLATED':
+        try:
+            api.call('POST','/fapi/v1/marginType',symbol=symbol,marginType='ISOLATED')
+        except Rejected as exc:
+            if exc.code!=-4046: raise
+    if int(r['leverage'])!=2:
+        api.call('POST','/fapi/v1/leverage',symbol=symbol,leverage=2)
+    for attempt in range(3):
+        rows=api.call('GET','/fapi/v1/symbolConfig',symbol=symbol)
+        r=next(x for x in rows if x['symbol']==symbol)
+        if r['marginType'].upper()=='ISOLATED' and int(r['leverage'])==2:
+            return
+        time.sleep(1)
+    raise ValueError('Testnet settings not confirmed')
 
 def flatten(c):
     p=c.plan()
@@ -144,6 +151,7 @@ def main():
     except Exception as exc:
         result={'status':'REVIEW_REQUIRED','error_type':type(exc).__name__,'real_orders':0}
         if isinstance(exc,Rejected): result['api_code']=exc.code
+        if isinstance(exc,ValueError): result['reason']=str(exc)
     print('SMOKE_JSON='+encode(result),flush=True)
 
 if __name__=='__main__': main()
