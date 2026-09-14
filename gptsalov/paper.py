@@ -88,6 +88,10 @@ class PaperEngine:
     def __init__(self, cfg: Config, store: Store):
         self.cfg, self.store = cfg, store
 
+    def validate_entry(self, signal, plan):
+        """Extension point for isolated research; baseline accepts its sized plan."""
+        return None
+
     def required_symbols(self):
         state = self.store.state
         if state["position"]:
@@ -177,6 +181,7 @@ class PaperEngine:
                     if bar.open_ms != pending["execute_open_ms"]:
                         raise ValueError("MISSED_ENTRY_BAR")
                     plan = size(signal, bar.open, balance, snapshot.rules[signal.symbol], cfg)
+                    self.validate_entry(signal, plan)
                     entry_fee = plan.notional*cfg.fee_bps/10000
                     reserve = plan.notional*cfg.funding_reserve_bps/10000
                     balance -= entry_fee+reserve

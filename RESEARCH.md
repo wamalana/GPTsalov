@@ -94,3 +94,17 @@ the change in equity across the window. Status uses a consistent read transactio
 
 A deployment interruption can trigger the existing data-gap reconciliation
 lock. Never clear it automatically. ChatGPT's reporting schedule remains disabled.
+
+## Independent prospective portfolios
+Run `python3 -m gptsalov.forward run --directory NEW_EMPTY_DIRECTORY --config config.toml`.
+Read `python3 -m gptsalov.forward status --directory DIRECTORY`.
+Four ledgers start at the configured capital: baseline, 1R, 1.5R, 2R.
+All use the same live public snapshot and the union of required position/pending
+symbols. Each keeps its own sizing, availability, daily lock and permanent review
+lock. No automatic reset and no access to the main paper ledger.
+The filter is evaluated at the modeled entry price after rounding, slippage,
+fees and reserve. Rejected entries do not charge costs; next decisions occur
+at the next normal signal evaluation. Existing observations are not backfilled
+as forward results. Data collection warm-up candles are not executed retroactively.
+A partial multi-ledger commit on process crash refuses restart for manual review.
+Separate scanning adds public API load; 429/418 stop the research service.
