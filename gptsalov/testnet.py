@@ -40,7 +40,7 @@ class DemoClient:
         ('GET','/fapi/v3/positionRisk'), ('GET','/fapi/v1/openOrders'),
         ('GET','/fapi/v1/openAlgoOrders'),
         ('POST','/fapi/v1/marginType'), ('POST','/fapi/v1/leverage'),
-        ('GET','/fapi/v1/userTrades'),
+        ('GET','/fapi/v1/userTrades'), ('GET','/fapi/v1/income'),
         ('GET',ORDER), ('POST',ORDER), ('DELETE',ORDER),
         ('GET',ALGO), ('POST',ALGO), ('DELETE',ALGO)}
     def __init__(self, key, secret):

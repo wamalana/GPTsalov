@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov bounded ETH Testnet strategy pilot
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=/home/wamalana/GPTsalov/testnet-pilot-current
+ExecStart=/usr/bin/python3 -u -m gptsalov.testnet_pilot run --directory /home/wamalana/GPTsalov/data/testnet-pilot-v1 --credentials /home/wamalana/.config/gptsalov/testnet.json
+Restart=no
+MemoryMax=192M
+CPUQuota=30%
+UMask=0077
+NoNewPrivileges=yes
+[Install]
+WantedBy=default.target
