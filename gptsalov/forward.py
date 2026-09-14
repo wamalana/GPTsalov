@@ -26,11 +26,12 @@ class FilterEngine(PaperEngine):
         if dec(r['net_rr']) < self.threshold:
             raise ValueError('NET_RR_BELOW_THRESHOLD')
 
-def run(root, cfg, source, cycles):
+def run(root, cfg, source, cycles, *, variants=None, engine_class=FilterEngine):
+    variants = VARIANTS if variants is None else variants
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     identity = {'schema':1,'config_hash':cfg.fingerprint,'source':source,
-                'variants':VARIANTS,'mode':'PROSPECTIVE_PAPER'}
+                'variants':variants,'mode':'PROSPECTIVE_PAPER'}
     manifest = root/'experiment.json'
     if manifest.exists():
         if json.loads(manifest.read_text()) != identity:
@@ -43,12 +44,12 @@ def run(root, cfg, source, cycles):
     feed = DemoFeed() if source == 'synthetic-demo' else BinanceFeed(cfg)
     with ExitStack() as stack:
         engines = {}
-        for name, threshold in VARIANTS.items():
+        for name, threshold in variants.items():
             path = root/(name+'.db')
             if path.is_symlink() or (path.exists() and path.stat().st_nlink != 1):
                 raise ValueError('Research ledger alias refused')
             store = stack.enter_context(Store(str(path),cfg,source))
-            engines[name] = FilterEngine(cfg,store,threshold)
+            engines[name] = engine_class(cfg,store,threshold)
         stamps = {e.store.state['last_close_ms'] for e in engines.values()}
         if len(stamps) != 1:
             raise ValueError('Partial portfolio cycle; manual review required')
@@ -83,7 +84,7 @@ def status(root):
     result={'experiment':json.loads((root/'experiment.json').read_text()),'portfolios':{},
             'warning':'Prospective candle simulation. Independent locks persist; no auto resets. No real orders.'}
     now=int(time.time()*1000)
-    for name in VARIANTS:
+    for name in result['experiment']['variants']:
         r=report(root/(name+'.db'),now_ms=now)
         result['portfolios'][name]={k:r[k] for k in ('equity','net_pnl_estimate',
             'closed_trades','position','pending','hard_lock','daily_locked',

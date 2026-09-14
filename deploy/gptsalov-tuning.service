@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov v2 entry-quality paper experiments
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=/home/wamalana/GPTsalov/tuning-current
+ExecStart=/usr/bin/python3 -u -m gptsalov.tuning run --directory /home/wamalana/GPTsalov/data/entry-quality-v2 --config /home/wamalana/GPTsalov/tuning-current/config.toml
+Restart=no
+MemoryMax=192M
+CPUQuota=30%
+UMask=0077
+NoNewPrivileges=yes
+[Install]
+WantedBy=default.target
