@@ -1,0 +1,5 @@
+# Add a separate hostname to your EXISTING Caddy configuration; never overwrite it.
+# Replace monitor.example.com with a hostname resolving to your VPS.
+monitor.example.com {
+    reverse_proxy 127.0.0.1:8790
+}

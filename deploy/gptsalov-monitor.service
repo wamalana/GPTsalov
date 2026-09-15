@@ -1,0 +1,22 @@
+[Unit]
+Description=GPTsalov read-only dashboard and health collector
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/GPTsalov/monitor-current
+ExecStart=/usr/bin/python3 -u -m gptsalov.monitor --db %h/GPTsalov/data/binance-paper.db
+EnvironmentFile=%h/.config/gptsalov/monitor.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadOnlyPaths=%h/GPTsalov/data
+UMask=0077
+MemoryMax=192M
+CPUQuota=30%
+
+[Install]
+WantedBy=default.target
