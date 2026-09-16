@@ -68,16 +68,8 @@ The check runs approximately every minute and flags failure after three consecut
 Stop/disable `gptsalov-monitor.service` on the VPS and `gptsalov-watchdog.timer` on the second host; remove only the dedicated Caddy hostname after validating its remaining config. Preserve the trading release, services, database and risk locks. No migration or trader restart is required by this change.
 
 
-## Deployment record — 2026-09-16
+## Monitoring setup status
 
-- Instance: `instance-20260909-062314`, zone `asia-northeast1-a`, project `claudislav`.
-- Monitor user: `wamalana`; release: `~/GPTsalov/releases/monitor-20260916-v2`; symlink `~/GPTsalov/monitor-current`.
-- Dashboard: https://gptsalov.34.180.104.74.sslip.io/ . Caddy HTTPS verified. Existing Caddy default config was backed up before appending this hostname.
-- Viewer API authenticated HTTP 200; health API authenticated HTTP 503 correctly reports stopped/locked baseline paper system. Requests without a token are rejected.
-- `Linger=yes`; monitor is enabled as a user service and runs without the Mac. Paper, Forward, Tuning, Shadow and Testnet services are inspected independently. No trader service or risk state was changed.
-- Primary paper ledger: last observed 2026-09-14, equity 100.678583109082, 7 closed trades, market connection error and loss-streak risk lock. This is an old ledger snapshot, not a current market valuation.
-- Testnet ledger was fresh but locked, phase LOCKED; no order actions were taken.
-- Cloud Monitoring check: `projects/claudislav/uptimeCheckConfigs/gptsalov-dashboard-availability-nmat6XbbIPo`, public root HTTPS GET every 60 seconds from three US locations, no secret headers. This checks availability only, not trading health.
-- Creating the separate authenticated Cloud Monitoring health check was blocked by automatic approval review because it would store the VPS health token in GCP Monitoring. It remains unconfigured pending explicit user permission; the blocked action was not retried.
-- No four-hour reports, outbound notifications or alert destination configured. Availability results can be viewed in GCP Monitoring.
-- Validation: 87 tests passed on VPS before installation; 88 passed locally after adding the separate pilot-ledger test. Login page inspected in cloud browser; authenticated API checked over HTTPS. Full authenticated/mobile browser QA remains pending.
+The authenticated external health check has been configured after explicit user authorization. It uses HTTPS with certificate validation, masked authorization headers, a 60-second interval and a 10-second timeout. The separate public availability check remains configured. Initial metric ingestion was still pending at verification time.
+
+No notification destination or four-hour reports have been configured. No trading service, trading mode or risk lock was changed. Infrastructure identifiers, credentials and account figures are intentionally omitted from this record.
