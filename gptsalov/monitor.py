@@ -15,7 +15,8 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATIC = Path(__file__).with_name('dashboard')
-SERVICES = ('gptsalov-paper.service', 'gptsalov-forward.service')
+SERVICES = ('gptsalov-paper.service', 'gptsalov-forward.service', 'gptsalov-tuning.service',
+            'gptsalov-multiagent-shadow.service', 'gptsalov-testnet-pilot.service')
 MAX_OBSERVATION_AGE_MS = 180_000
 MAX_SNAPSHOT_AGE_MS = 90_000
 
@@ -68,9 +69,9 @@ def ledger_status(path, timestamp):
         fresh = fresh and market_age is not None and 0 <= market_age <= 3_600_000 + max_age
         error = bool(s.get('last_error'))
         locked = bool(s.get('hard_lock') or s.get('daily_locked'))
-        source = s.get('source') if s.get('source') in ('binance', 'synthetic-demo') else 'unknown'
+        source = s.get('source') if s.get('source') in ('binance', 'binance-public', 'synthetic-demo') else 'unknown'
         status = ('error' if error else 'locked' if locked else 'stale' if not fresh else
-                  'synthetic' if source == 'synthetic-demo' else 'current' if source == 'binance' else 'unknown')
+                  'synthetic' if source == 'synthetic-demo' else 'current' if source in ('binance', 'binance-public') else 'unknown')
         fields = {k: number(s.get(k)) for k in ('equity', 'initial_equity', 'balance', 'closed_trades', 'wins')}
         equity, initial = fields['equity'], fields['initial_equity']
         fields['pnl'] = equity - initial if equity is not None and initial is not None else None
@@ -89,10 +90,36 @@ def ledger_status(path, timestamp):
         return {'status': 'unavailable', 'mode': 'unknown', 'metrics': {}, 'events': []}
 
 
+def pilot_status(path, timestamp):
+    try:
+        with closing(sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True, timeout=2)) as db:
+            db.execute('PRAGMA query_only=ON')
+            row = db.execute('SELECT data FROM state WHERE id=1').fetchone()
+        if not row or len(row[0]) > 2_000_000:
+            raise ValueError('Invalid state')
+        s = json.loads(row[0])
+        if s.get('policy', {}).get('environment') != 'testnet':
+            raise ValueError('Not a testnet ledger')
+        checked = number(s.get('last_check_ms'))
+        fresh = checked is not None and 0 <= timestamp - checked <= 180_000
+        status = 'error' if s.get('error') else 'locked' if s.get('lock') else 'current' if fresh else 'stale'
+        phase = s.get('phase', '')
+        phase = phase if isinstance(phase, str) and phase.isascii() and len(phase) <= 40 and phase.replace('_','').isalnum() else 'unknown'
+        return {'status': status, 'mode': 'testnet', 'checked_at_ms': checked, 'fresh': fresh,
+                'locked': bool(s.get('lock')), 'has_error': bool(s.get('error')), 'phase': phase,
+                'equity': number(s.get('equity')), 'closed_trades': number(s.get('closed_trades'))}
+    except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError):
+        return {'status': 'unavailable', 'mode': 'unknown'}
+
+
 def collect(db_path, service_reader=service_status, timestamp=None):
     stamp = now_ms() if timestamp is None else timestamp
     ledger = ledger_status(db_path, stamp)
     services = {unit: service_reader(unit) for unit in SERVICES}
+    pilot = pilot_status(Path(db_path).parent / 'testnet-pilot-v1/pilot.db', stamp)
+    pilot_state = pilot['status']
+    if services['gptsalov-testnet-pilot.service']['status'] != 'active' and pilot_state == 'current':
+        pilot_state = 'unknown'
     paper_active = services[SERVICES[0]]['status'] == 'active'
     healthy = ledger['status'] == 'current' and paper_active
     working = paper_active and ledger['status'] == 'current'
@@ -104,8 +131,8 @@ def collect(db_path, service_reader=service_status, timestamp=None):
                 {'id': 'risk', 'name': 'Risk Guard', 'status': state, 'kind': 'paper_component'},
                 {'id': 'execution', 'name': 'Paper Trader', 'status': state, 'kind': 'paper_component'},
                 {'id': 'news', 'name': 'News Owl', 'status': 'not_connected', 'kind': 'unconnected'},
-                {'id': 'testnet', 'name': 'Testnet Pilot', 'status': 'not_verified', 'kind': 'unconnected'}],
-            'testnet': 'not_verified', 'scheduled_reports': False}
+                {'id': 'testnet', 'name': 'Testnet Pilot', 'status': pilot_state, 'kind': 'testnet_ledger'}],
+            'testnet': pilot, 'scheduled_reports': False}
 
 
 class Snapshot:

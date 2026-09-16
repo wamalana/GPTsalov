@@ -1,6 +1,6 @@
 # GPTsalov monitoring without an always-on Mac
 
-This change adds a read-only dashboard, VPS collector and a watchdog for a **second host**. It does not submit orders, restart trading, unlock risk state, use Binance keys or schedule four-hour reports. Installation on the real VPS has not been verified.
+This change adds a read-only dashboard, VPS collector and a watchdog for a **second host**. It does not submit orders, restart trading, unlock risk state, use Binance keys or schedule four-hour reports. Installed on the VPS on 2026-09-16. See deployment record below.
 
 ## What is measured
 
@@ -8,7 +8,7 @@ This change adds a read-only dashboard, VPS collector and a watchdog for a **sec
 - `gptsalov-paper.service` and optional `gptsalov-forward.service` in the current user's systemd manager.
 - An observation must be within 180 seconds, and the closed candle within one hour plus its permitted delay. A stopped/unknown primary service, missing DB, stale observation, synthetic data, errors or risk locks never produce healthy status.
 - The collector refreshes every 30 seconds. Its own snapshot expires after 90 seconds. `/healthz` returns 503 for an unhealthy or stale collector.
-- The six avatar desks represent components of the existing paper engine. They are not six independently running agents. News is disconnected and Testnet account connectivity is unverified. No order/account connectivity is inferred from public market data.
+- The six avatar desks represent components of the existing paper engine. They are not six independently running agents. News is disconnected. The separate Testnet pilot desk reads a strictly allowlisted local pilot ledger; this monitor does not contact the exchange. No order/account connectivity is inferred from public market data.
 - Equity and P&L are paper figures; raw logs, configuration, error strings and API secrets are not exposed.
 
 ## Local checks
@@ -42,7 +42,7 @@ If `Linger` is not `yes`, enable it through the host's permitted administration 
 
 ## External watchdog
 
-Install on an **independent always-on host or managed runner**, not this VPS or the Mac. A watchdog on the trading VPS cannot detect that VPS losing power. An external runner/alert destination has not been provisioned by this change.
+Install on an **independent always-on host or managed runner**, not this VPS or the Mac. A watchdog on the trading VPS cannot detect that VPS losing power. A GCP managed HTTPS availability check is now provisioned (see below). The standalone watchdog is an optional alternative; no notification destination is configured.
 
 Use the same code release at `~/GPTsalov/monitor-current` on the second host. Create `~/.config/gptsalov/watchdog.env` with mode 0600:
 
@@ -66,3 +66,18 @@ The check runs approximately every minute and flags failure after three consecut
 ## Rollback
 
 Stop/disable `gptsalov-monitor.service` on the VPS and `gptsalov-watchdog.timer` on the second host; remove only the dedicated Caddy hostname after validating its remaining config. Preserve the trading release, services, database and risk locks. No migration or trader restart is required by this change.
+
+
+## Deployment record — 2026-09-16
+
+- Instance: `instance-20260909-062314`, zone `asia-northeast1-a`, project `claudislav`.
+- Monitor user: `wamalana`; release: `~/GPTsalov/releases/monitor-20260916-v2`; symlink `~/GPTsalov/monitor-current`.
+- Dashboard: https://gptsalov.34.180.104.74.sslip.io/ . Caddy HTTPS verified. Existing Caddy default config was backed up before appending this hostname.
+- Viewer API authenticated HTTP 200; health API authenticated HTTP 503 correctly reports stopped/locked baseline paper system. Requests without a token are rejected.
+- `Linger=yes`; monitor is enabled as a user service and runs without the Mac. Paper, Forward, Tuning, Shadow and Testnet services are inspected independently. No trader service or risk state was changed.
+- Primary paper ledger: last observed 2026-09-14, equity 100.678583109082, 7 closed trades, market connection error and loss-streak risk lock. This is an old ledger snapshot, not a current market valuation.
+- Testnet ledger was fresh but locked, phase LOCKED; no order actions were taken.
+- Cloud Monitoring check: `projects/claudislav/uptimeCheckConfigs/gptsalov-dashboard-availability-nmat6XbbIPo`, public root HTTPS GET every 60 seconds from three US locations, no secret headers. This checks availability only, not trading health.
+- Creating the separate authenticated Cloud Monitoring health check was blocked by automatic approval review because it would store the VPS health token in GCP Monitoring. It remains unconfigured pending explicit user permission; the blocked action was not retried.
+- No four-hour reports, outbound notifications or alert destination configured. Availability results can be viewed in GCP Monitoring.
+- Validation: 87 tests passed on VPS before installation; 88 passed locally after adding the separate pilot-ledger test. Login page inspected in cloud browser; authenticated API checked over HTTPS. Full authenticated/mobile browser QA remains pending.

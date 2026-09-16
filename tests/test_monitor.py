@@ -42,6 +42,19 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(before,self.path.read_bytes())
         self.assertEqual(result['ledger']['metrics']['pnl'],2)
 
+    def test_testnet_is_separate_and_read_only(self):
+        pilot = self.path.parent/'testnet-pilot-v1/pilot.db'
+        pilot.parent.mkdir()
+        with sqlite3.connect(pilot) as db:
+            db.execute('CREATE TABLE state(id INTEGER PRIMARY KEY,data TEXT)')
+            db.execute('INSERT INTO state VALUES(1,?)',(json.dumps({'policy':{'environment':'testnet'},'last_check_ms':STAMP,'equity':'50','lock':'REVIEW','phase':'LOCKED','identity':'SECRET'}),))
+        before = pilot.read_bytes()
+        result = collect(self.path,lambda _: {'status':'active'},STAMP)
+        self.assertEqual(result['testnet']['status'],'locked')
+        self.assertEqual(result['testnet']['mode'],'testnet')
+        self.assertNotIn('SECRET',json.dumps(result))
+        self.assertEqual(pilot.read_bytes(),before)
+
     def test_missing_database_not_created(self):
         missing = self.path.with_name('missing.db')
         self.assertEqual(ledger_status(missing,STAMP)['status'],'unavailable')
