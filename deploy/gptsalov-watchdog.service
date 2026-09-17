@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov external health check (install on a different host)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/GPTsalov/monitor-current
+ExecStart=/usr/bin/python3 -m gptsalov.watchdog --state %h/.local/state/gptsalov/watchdog.json
+EnvironmentFile=%h/.config/gptsalov/watchdog.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077
+TimeoutStartSec=45

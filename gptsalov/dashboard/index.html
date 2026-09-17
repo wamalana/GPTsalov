@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GPTsalov · Agent Office</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body><main>
+<header><a class="brand" href="/">gpt<span>salov</span><small>AGENT OFFICE</small></a><div class="header-right"><span class="mode">READ ONLY</span><button id="logout" hidden>ออกจากระบบ</button></div></header>
+<section id="login" class="login"><div class="eyebrow">YOUR TRADING WORKSPACE</div><h1>แวะมาดูทีมทำงาน</h1><p>สถานะจาก VPS ในหน้าเดียว เปิดดูได้แม้ปิดคอมอยู่</p><form id="login-form"><label for="token">รหัสเข้าดู Dashboard</label><div class="input-row"><input id="token" type="password" required autocomplete="current-password" placeholder="ใส่รหัสเข้าดู"><button type="submit">เข้าดูสถานะ ↗</button></div></form><p id="login-error" role="alert"></p><small>ใช้รหัส Dashboard ที่ตั้งบน VPS ไม่ใช่ Binance API key</small></section>
+<div id="workspace" hidden>
+<section class="heading"><div><div class="eyebrow">LIVE WORKSPACE</div><h1>วันนี้ทีมเป็นอย่างไรบ้าง?</h1><p id="updated">กำลังอ่านสถานะ…</p></div><button id="refresh">↻ อัปเดต</button></section>
+<div id="connection" role="status" class="notice">กำลังเชื่อมต่อ</div>
+<section class="metrics" aria-label="ผลการเทรดจำลอง"><article><span>ยอดพอร์ตจำลอง</span><strong id="equity">—</strong><small>USDT · Paper ledger</small></article><article><span>กำไร / ขาดทุนจำลอง</span><strong id="pnl">—</strong><small>เทียบกับเงินเริ่มต้น</small></article><article><span>ปิดเทรดแล้ว</span><strong id="trades">—</strong><small>รายการจำลอง</small></article><article><span>Win rate</span><strong id="winrate">—</strong><small>จากรายการที่ปิดแล้ว</small></article></section>
+<section class="office"><div class="section-heading"><div><h2>Agent office</h2><p>สถานะองค์ประกอบภายในบอท paper เดียวกัน · ยังไม่ใช่ agent อิสระ</p></div><span class="pill">6 DESKS</span></div><div id="agents" class="agents"></div></section>
+<section class="bottom"><article class="panel"><h2>System health</h2><dl id="health"></dl></article><article class="panel"><h2>กิจกรรมล่าสุด</h2><p class="muted">จากบันทึกของบอท</p><ol id="events"></ol></article></section>
+<footer>สถานะอย่างเดียว · ไม่มีปุ่มส่งคำสั่งเทรด<span>รายงานทุก 4 ชั่วโมง: ยังไม่เปิด</span></footer>
+</div></main></body></html>

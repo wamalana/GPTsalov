@@ -1,0 +1,8 @@
+[Unit]
+Description=Check GPTsalov health each minute; no scheduled trading reports
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=60
+AccuracySec=5
+[Install]
+WantedBy=timers.target
