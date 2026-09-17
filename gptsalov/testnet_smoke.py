@@ -20,7 +20,9 @@ def small_plan(price,rules):
 def flat_positions(api):
     return all(dec(x['positionAmt'])==0 for x in api.call('GET','/fapi/v3/positionRisk'))
 
-def setup(api,symbol):
+def setup(api,symbol,leverage=2):
+    if leverage is not None and (type(leverage) is not int or leverage not in (1,2)):
+        raise ValueError('Invalid Testnet leverage')
     if not flat_positions(api) or api.call('GET','/fapi/v1/openOrders') or api.call('GET','/fapi/v1/openAlgoOrders'):
         raise ValueError('Testnet account must be empty before smoke test')
     if api.call('GET','/fapi/v1/positionSide/dual')['dualSidePosition'] is not False:
@@ -32,12 +34,12 @@ def setup(api,symbol):
             api.call('POST','/fapi/v1/marginType',symbol=symbol,marginType='ISOLATED')
         except Rejected as exc:
             if exc.code!=-4046: raise
-    if int(r['leverage'])!=2:
-        api.call('POST','/fapi/v1/leverage',symbol=symbol,leverage=2)
+    if leverage is not None and int(r['leverage'])!=leverage:
+        api.call('POST','/fapi/v1/leverage',symbol=symbol,leverage=leverage)
     for attempt in range(3):
         rows=api.call('GET','/fapi/v1/symbolConfig',symbol=symbol)
         r=next(x for x in rows if x['symbol']==symbol)
-        if r['marginType'].upper()=='ISOLATED' and int(r['leverage'])==2:
+        if r['marginType'].upper()=='ISOLATED' and (leverage is None or int(r['leverage'])==leverage):
             return
         time.sleep(1)
     raise ValueError('Testnet settings not confirmed')
