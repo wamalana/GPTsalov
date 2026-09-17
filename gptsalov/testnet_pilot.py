@@ -117,6 +117,33 @@ def exit_once(c,entry,pos):
         reduceOnly='true',newClientOrderId=c.cid('exit')))
     return 'EXIT_RECONCILIATION'
 
+def verify_protection(c, name, opposite, price):
+    """Persist sanitized GET evidence; ACK alone is never protection proof."""
+    expected = dict(clientAlgoId=c.cid(name), symbol=SYMBOL, side=opposite,
+                    positionSide='BOTH', workingType='CONTRACT_PRICE',
+                    orderType='STOP_MARKET' if name=='stop' else 'TAKE_PROFIT_MARKET')
+    result = {'at_ms':now_ms(), 'reason':'MISMATCH', 'retryable':False}
+    try:
+        row=c.api.call('GET',ALGO,clientAlgoId=c.cid(name))
+        fields=tuple(expected)+('algoStatus','closePosition','triggerPrice')
+        result['observed']={k:row.get(k) for k in fields}
+        matches=all(row.get(k)==v for k,v in expected.items())
+        matches=matches and row.get('closePosition') in (True,'true') and dec(row.get('triggerPrice','NaN'))==dec(price)
+        result['reason']='CONFIRMED' if matches and row.get('algoStatus')=='NEW' else 'MISMATCH'
+    except Rejected as exc:
+        result.update(reason='REJECTED',code=exc.code,retryable=exc.code==-2013)
+    except Uncertain:
+        result.update(reason='UNAVAILABLE',retryable=True)
+    except (ValueError,TypeError,AttributeError,ArithmeticError):
+        result['reason']='MALFORMED'
+    old=c.j.get(name+'_verification') or {}
+    result['first_unconfirmed_ms']=(old.get('first_unconfirmed_ms',result['at_ms'])
+        if result['reason']!='CONFIRMED' else None)
+    if result['first_unconfirmed_ms'] is None and result['reason']!='CONFIRMED':
+        result['first_unconfirmed_ms']=result['at_ms']
+    c.j.put(name+'_verification',result)
+    return result
+
 def reconcile(c,force_exit=False):
     """Only first entry POST uses preflight; restart never retries that POST."""
     p=c.plan()
@@ -162,25 +189,20 @@ def reconcile(c,force_exit=False):
         force_exit=True
     if force_exit or c.j.get('exit'):
         return exit_once(c,entry,pos),None
-    try:
-        a=c.api.call('GET',ALGO,clientAlgoId=c.cid('stop'))
-        protected=(a['algoStatus']=='NEW' and a['symbol']==SYMBOL and a['side']==opposite
-            and a.get('closePosition') in (True,'true') and dec(a['triggerPrice'])==stop
-            and a.get('orderType',a.get('type'))=='STOP_MARKET')
-    except Rejected:
-        protected=False
-    if not protected:
+    if verify_protection(c,'stop',opposite,stop)['reason']!='CONFIRMED':
         return exit_once(c,entry,pos),None
     c.once('target',ALGO,dict(symbol=SYMBOL,side=opposite,positionSide='BOTH',
         algoType='CONDITIONAL',type='TAKE_PROFIT_MARKET',triggerPrice=p['target'],
         closePosition='true',workingType='CONTRACT_PRICE',clientAlgoId=c.cid('target')))
     # A target that cannot be confirmed cannot cause a second POST.
-    try:
-        t=c.api.call('GET',ALGO,clientAlgoId=c.cid('target'))
-        target_ok=t['algoStatus']=='NEW' and t['symbol']==SYMBOL and t['side']==opposite and t.get('closePosition') in (True,'true') and dec(t['triggerPrice'])==dec(p['target'])
-    except Rejected:
-        target_ok=False
-    return ('PROTECTED' if target_ok else 'PROTECTED_TARGET_REVIEW'),None
+    verification=verify_protection(c,'target',opposite,p['target'])
+    if verification['reason']=='CONFIRMED':
+        return 'PROTECTED',None
+    # A known POST rejection is not a visibility delay. Never retry its POST.
+    if (verification['retryable'] and c.j.get('target').get('phase')!='REJECTED'
+            and 0<=now_ms()-verification['first_unconfirmed_ms']<30000):
+        return 'PROTECTED_TARGET_PENDING',None
+    return 'PROTECTED_TARGET_REVIEW',None
 
 def realized(api,entry,exits):
     rows={}
@@ -233,6 +255,12 @@ def candidate(api,public,book):
     if now_ms()//BAR_MS*BAR_MS-1!=stamp:
         book.save('CANDLE_BOUNDARY_SKIP');return None
     signal=strategy(SYMBOL,bars)
+    if book.s['policy'].get('decision_engine') == 'multiagent-testnet-v1':
+        from .multiagent_gate import evaluate
+        allowed, review = evaluate(bars, book.s, t, signal)
+        book.s['last_agent_review'] = review
+        book.save({'event':'MULTIAGENT_REVIEW','review':review})
+        if not allowed: return None
     if signal is None: return None
     book.s['last_signal_ms']=stamp
     rows=api.call('GET','/fapi/v1/exchangeInfo')['symbols']
@@ -286,6 +314,7 @@ def tick(book,api,public):
     s['last_scan_ms']=t
     if position(api) is not None or api.call('GET','/fapi/v1/openOrders') or api.call('GET','/fapi/v1/openAlgoOrders'):
         s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
+    s['phase']='WAIT_SIGNAL'
     p=candidate(api,public,book)
     if p:
         if now_ms()-p['signal_observed_ms']>60000:
@@ -305,6 +334,7 @@ def main():
     parser.add_argument('command',choices=('run','status'))
     parser.add_argument('--directory',required=True)
     parser.add_argument('--credentials')
+    parser.add_argument('--multi-agent', action='store_true')
     args=parser.parse_args()
     if args.command=='status':
         with closing(sqlite3.connect((Path(args.directory)/'pilot.db').resolve().as_uri()+'?mode=ro',uri=True)) as db:
@@ -322,6 +352,8 @@ def main():
         api=DemoClient(credentials['api_key'],credentials['api_secret'])
     else:
         api=DemoClient(os.environ.get('APIKEYBD',''),os.environ.get('SECKEYBD',''))
+    if args.multi_agent:
+        POLICY['decision_engine']='multiagent-testnet-v1'
     book=Book(args.directory,api.identity)
     try:
         if not book.s['active'] and not book.s['lock']: setup(api,SYMBOL)
