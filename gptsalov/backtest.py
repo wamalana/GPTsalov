@@ -558,6 +558,15 @@ SWEEP = {
     "3slots":          (16, replace(V3, max_positions=3), V2Params()),
     "daily":           (96, replace(V3, bar_ms=24*HOUR_MS, max_hold_bars=30), V2Params()),
     "2h":              (8, replace(V3, bar_ms=2*HOUR_MS, max_hold_bars=84), V2Params()),
+    # Round-2 combinations, declared after seeing the single-knob grid (in-sample):
+    # stop 1.0 ATR was the dominant knob; check it is not an edge of the grid and
+    # that it composes with the slot structure rather than assuming it does.
+    "stop0.75atr":     (16, V3, V2Params(stop_atr=0.75)),
+    "stop1.25atr":     (16, V3, V2Params(stop_atr=1.25)),
+    "stop1.0_2slots":  (16, replace(V3, max_positions=2, one_per_side=True), V2Params(stop_atr=1.0)),
+    "stop1.0_3slots":  (16, replace(V3, max_positions=3), V2Params(stop_atr=1.0)),
+    "stop1.0_er0.4":   (16, V3, V2Params(stop_atr=1.0, er_min=0.4)),
+    "stop1.0_trail4":  (16, replace(V3, trail_atr=4.0), V2Params(stop_atr=1.0)),
 }
 
 

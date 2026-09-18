@@ -1,12 +1,18 @@
-"""Robustness sweep of the 4h candidate. Usage: PYTHONPATH=. python3 scripts/backtest_sweep.py DIR OUT.json"""
+"""Robustness sweep of the 4h candidate. Usage: PYTHONPATH=. python3 scripts/backtest_sweep.py DIR OUT.json [CELL ...] [--symbols all]"""
 import json, statistics, sys
 from gptsalov.backtest import *
 root, out_path = sys.argv[1], sys.argv[2]
-data = {s: x for s in DEFAULT_SYMBOLS if (x := load_klines(root, s))}
+args = sys.argv[3:]
+universe = list(DEFAULT_SYMBOLS)
+if "--symbols" in args:
+    i = args.index("--symbols"); universe = sorted(p.name for p in (Path(root)/"klines").iterdir()) if args[i+1] == "all" else args[i+1].split(","); args = args[:i]+args[i+2:]
+cells = args or list(SWEEP)
+data = {s: x for s in universe if (x := load_klines(root, s)) and len(x) > 5000}
+print("symbols", len(data), flush=True)
 funding = {s: load_funding(root, s) for s in data}
 split = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()*1000)
 out = {}
-for name in SWEEP:
+for name in cells:
     r = run_sweep_cell(name, data, funding)
     rep = split_report(r, split)
     rep["signals_generated"] = r.signal_count
