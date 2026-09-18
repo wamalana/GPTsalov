@@ -514,13 +514,16 @@ def run_variant(name, data15: dict, funding=None, cost_mult=1.0, v2_params=V2Par
     else:
         btc = data.get("BTCUSDT")
         sigs = {s: v2_signals(x, v2_params, btc) for s, x in data.items()}
-    return simulate(data, sigs, eng, funding)
+    res = simulate(data, sigs, eng, funding)
+    res.signal_count = sum(len(x) for x in sigs.values())
+    return res
 
 
 def split_report(res: Result, split_ms=None):
     out = {"all": metrics(res.trades), "final_equity": round(res.final_equity, 3),
            "max_drawdown": round(res.max_drawdown, 4),
-           "max_concurrent_positions": getattr(res, "max_concurrent", None), "rejects": res.rejects,
+           "max_concurrent_positions": getattr(res, "max_concurrent", None),
+           "signals_generated": getattr(res, "signal_count", None), "rejects": res.rejects,
            "lock_triggers_counted_not_enforced": res.lock_triggers}
     if split_ms:
         out["in_sample"] = metrics([t for t in res.trades if t.open_ms < split_ms])
