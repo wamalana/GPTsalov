@@ -23,7 +23,7 @@ SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
         'risk_cap':'2','stop_model':VERSION,'notional_cap':'25','min_rr':'1','max_trades':3,
-        'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
+        'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
 def now_ms(): return int(time.time()*1000)
 def day(t): return datetime.fromtimestamp(t/1000,ZoneInfo('Asia/Bangkok')).date().isoformat()
@@ -53,7 +53,7 @@ class Book:
                 self.close(); raise ValueError('Pilot identity/policy mismatch')
         else:
             t=now_ms()
-            self.s=dict(identity=identity,policy=POLICY,created_ms=t,active=None,
+            self.s=dict(identity=identity,policy=POLICY,created_ms=t,active=[],next_trade_id=1,
                 seen_ms=None,closed_trades=0,loss_streak=0,balance='50',equity='50',
                 high_water='50',day=day(t),day_start='50',lock=None,error=None,
                 last_check_ms=None,last_signal_ms=None,phase='STARTING')
@@ -72,6 +72,18 @@ def position(api,symbol=None):
     rows=[x for x in rows if dec(x['positionAmt'])!=0 and (symbol is None or x['symbol']==symbol)]
     if len(rows)>1:raise ValueError('Unexpected multiple positions')
     return rows[0] if rows else None
+
+def positions(api):
+    rows=api.call('GET','/fapi/v3/positionRisk')
+    result=[x for x in rows if dec(x['positionAmt'])!=0]
+    if len({x['symbol'] for x in result})!=len(result):
+        raise ValueError('Duplicate symbol positions')
+    return result
+
+def active_slots(state):
+    active=state.get('active')
+    if active is None:return []
+    return active if isinstance(active,list) else [active]
 
 def owned_exit_orders(c):
     """Require exchange order evidence, not a briefly empty position response."""
@@ -250,12 +262,15 @@ def realized(api,entry,exits):
     net=gross-fees+sum((dec(x['income']) for x in funding),dec(0))
     return net,dict(gross=str(gross),fees=str(fees),net=str(net),fills=list(rows.values()),funding=funding)
 
-def settle(book,net,details):
+def settle(book,net,details,slot=None):
     s=book.s
     s['balance']=str(dec(s['balance'])+net);s['equity']=s['balance']
     s['closed_trades']+=1
     s['loss_streak']=s['loss_streak']+1 if net<0 else 0
-    s['active']=None
+    if slot is None:
+        s['active']=[]
+    else:
+        s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
     if s['loss_streak']>=3: s['lock']='LOSS_STREAK_REVIEW'
     if s['closed_trades']-s.get('batch_start_closed_trades',0)>=POLICY['max_trades'] and not s['lock']: s['lock']='PILOT_BATCH_COMPLETE'
     book.save({'event':'CLOSED','result':details})
@@ -287,16 +302,18 @@ def apply_order_risk(api,book,signal,reference,plan,rule,atr):
     return plan,details
 
 
-def multi_candidate(api,public,book):
+def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0)):
     from .market_scanner import read as read_scan, classify
     t=now_ms();stamp=t//BAR_MS*BAR_MS-1
     s=book.s
-    if s.get('seen_ms')==stamp:return None
-    if not 0<=t-stamp<=CFG.max_data_age_ms:return None
+    if type(limit) is not int or not 1<=limit<=POLICY['max_positions']:
+        raise ValueError('INVALID_SLOT_LIMIT')
+    if s.get('seen_ms')==stamp:return [] if limit>1 else None
+    if not 0<=t-stamp<=CFG.max_data_age_ms:return [] if limit>1 else None
     scan=read_scan(stamp=t,full=True)
     if scan.get('status')!='current' or not 0<=t-scan.get('started_ms',0)<=120000:
         s['last_selection']={'at_ms':t,'status':'WAIT_FRESH_SCAN'}
-        return None
+        return [] if limit>1 else None
     candidates=[r for r in scan.get('rows',[]) if r.get('market')=='USD-M'
                 and r.get('quote')=='USDT' and r.get('contract')=='PERPETUAL'
                 and r.get('decision')=='CANDIDATE' and r.get('candle_close_ms')==stamp
@@ -305,7 +322,7 @@ def multi_candidate(api,public,book):
     selection={'at_ms':t,'candle_close_ms':stamp,'status':'NO_ELIGIBLE_SIGNAL',
                'candidates':len(candidates),'rejected':{}}
     s['last_selection']=selection;book.save()
-    if not candidates:return None
+    if not candidates:return [] if limit>1 else None
     candidates.sort(key=lambda r:(-r.get('score',0),-r.get('volume',0),r['symbol']))
     demo_rows=api.call('GET','/fapi/v1/exchangeInfo')['symbols']
     demo={r['symbol']:r for r in demo_rows if r.get('status')=='TRADING'
@@ -316,8 +333,11 @@ def multi_candidate(api,public,book):
     tickers={r['symbol']:r for r in public.get('/fapi/v1/ticker/24hr')}
     books={r['symbol']:r for r in public.get('/fapi/v1/ticker/bookTicker')}
     from .multiagent_gate import evaluate
+    selected=[];excluded=set(exclude)
     for row in candidates:
         symbol=row['symbol'];t=now_ms()
+        if symbol in excluded:
+            selection['rejected'][symbol]='ALREADY_ACTIVE';continue
         if not 0<=t-stamp<=CFG.max_data_age_ms:
             selection['status']='ENTRY_WINDOW_EXPIRED';break
         if symbol not in demo:
@@ -341,7 +361,11 @@ def multi_candidate(api,public,book):
             rule=Rules.from_exchange(demo[symbol])
             reference=dec(api.call('GET','/fapi/v1/ticker/price',symbol=symbol)['price'])
             signal,stop_evidence=adaptive_stop(signal,bars)
-            cap,risk_evidence=risk_allowance(s)
+            total_cap,risk_evidence=risk_allowance(s)
+            remaining=max(dec(0),total_cap-risk_reserved-sum((dec(x['modeled_risk']) for x in selected),dec(0)))
+            slots_left=limit-len(selected)
+            cap=remaining/slots_left if slots_left else dec(0)
+            if cap<=0:raise ValueError('PORTFOLIO_RISK_EXHAUSTED')
             s['risk_assessment']=risk_evidence
             plan=buffered_size(signal,reference,min(dec(s['equity']),dec(50)),rule,CFG,risk_cap=cap)
             assessment=reward_risk(dict(entry=plan.entry,qty=plan.qty,target=plan.target,
@@ -357,16 +381,22 @@ def multi_candidate(api,public,book):
             selection['rejected'][symbol]=str(e);continue
         if not 0<=now_ms()-stamp<=CFG.max_data_age_ms:
             selection['status']='ENTRY_WINDOW_EXPIRED';break
-        s['last_signal_ms']=stamp
-        selection.update(status='SELECTED',symbol=symbol,side='BUY' if signal.side==1 else 'SELL',
-                         modeled_risk=str(plan.risk),notional=str(plan.notional),sizing_version='fill-envelope-v2',stop_analysis=stop_evidence,risk_assessment=risk_evidence)
-        book.save({'event':'MARKET_SELECTION','selection':selection})
-        return dict(environment='testnet',symbol=symbol,side=selection['side'],
+        chosen=dict(environment='testnet',symbol=symbol,side='BUY' if signal.side==1 else 'SELL',
                     quantity=str(plan.qty),reference=str(reference),stop=str(plan.stop),target=str(plan.target),
                     purpose='MULTI_MARKET_TESTNET',sizing_version='fill-envelope-v2',stop_model=VERSION,risk_cap=str(cap),modeled_risk=str(plan.risk),stop_analysis=stop_evidence,signal_id=signal.key,signal_observed_ms=now_ms(),
                     signal_close_ms=stamp,**risk_details)
+        selected.append(chosen);excluded.add(symbol)
+        if len(selected)>=limit:break
+    if selected:
+        s['last_signal_ms']=stamp
+        selection.update(status='SELECTED',selected=[dict(symbol=x['symbol'],side=x['side'],
+            modeled_risk=x['modeled_risk']) for x in selected])
+        if len(selected)==1:
+            selection.update(symbol=selected[0]['symbol'],side=selected[0]['side'],
+                             modeled_risk=selected[0]['modeled_risk'])
     book.save({'event':'MARKET_SELECTION','selection':selection})
-    return None
+    if limit==1:return selected[0] if selected else None
+    return selected
 
 def candidate(api,public,book):
     if book.s['policy'].get('execution_universe')=='ALL_USDT_PERPETUAL':
@@ -416,20 +446,26 @@ def candidate(api,public,book):
 def tick(book,api,public):
     s=book.s;t=now_ms()
     s['last_check_ms']=t
-    if s['active']:
-        path=book.root/s['active']['file']
+    slots=active_slots(s)
+    s['active']=slots
+    live_positions=positions(api)
+    live_symbols={x['symbol'] for x in live_positions}
+    owned_symbols={x['symbol'] for x in slots}
+    if not live_symbols<=owned_symbols:
+        s['lock']='UNOWNED_ACCOUNT_STATE';s['phase']='LOCKED';book.save();return
+    s['equity']=str(dec(s['balance'])+sum((dec(x.get('unRealizedProfit','0'))-
+        abs(dec(x['positionAmt']))*(dec(x['markPrice'])*dec('.0008')+dec(x['entryPrice'])*dec('.0015'))
+        for x in live_positions),dec(0)))
+    risk_check(s,t)
+    for slot in list(slots):
+        path=book.root/slot['file']
         with Journal(path) as j:
             c=Coordinator(j,api)
             symbol=c.plan()['symbol']
-            if s['active'].get('symbol',symbol)!=symbol:raise ValueError('Active symbol mismatch')
-            pos=position(api,symbol)
-            if pos:
-                s['equity']=str(dec(s['balance'])+dec(pos.get('unRealizedProfit','0'))-
-                    abs(dec(pos['positionAmt']))*(dec(pos['markPrice'])*dec('.0008')+dec(pos['entryPrice'])*dec('.0015')))
-            risk_check(s,t)
-            force=bool(s['lock']) or t-s['active']['started_ms']>=POLICY['hold_ms']
+            if slot.get('symbol',symbol)!=symbol:raise ValueError('Active symbol mismatch')
+            force=bool(s['lock']) or t-slot['started_ms']>=POLICY['hold_ms']
             phase,data=reconcile(c,force_exit=force)
-            s['phase']=phase
+            slot['phase']=phase
             if phase=='CLOSED':
                 net,details=realized(api,*data)
                 plan=c.plan()
@@ -437,41 +473,61 @@ def tick(book,api,public):
                     details['stop_model']=VERSION
                     details['modeled_risk']=plan['modeled_risk']
                     s.setdefault('adaptive_results',[]).append({'net':str(net),'risk':plan['modeled_risk']})
-                settle(book,net,details)
+                settle(book,net,details,slot)
                 risk_check(s,t)
             elif phase=='NO_FILL':
-                s['active']=None;s['lock']='NO_FILL_REVIEW'
+                s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
+                s['lock']='NO_FILL_REVIEW'
             elif phase.startswith('UNKNOWN') or phase in ('PROTECTED_TARGET_REVIEW',):
                 s['lock']='ORDER_REVIEW'
-            s['error']=None;book.save()
-        return
-    risk_check(s,t)
+            s['error']=None
+    slots=active_slots(s)
+    s['phase']='ACTIVE_'+str(len(slots)) if slots else 'WAIT_SIGNAL'
+    book.save()
     s['risk_assessment']=risk_allowance(s)[1]
     if s['lock']:
         s['phase']='LOCKED';book.save();return
+    batch_used=s['closed_trades']-s.get('batch_start_closed_trades',0)+len(slots)
+    capacity=min(POLICY['max_positions']-len(slots),POLICY['max_trades']-batch_used)
+    if capacity<=0:
+        book.save();return
     # Scan once a minute, never submit merely to increase trade count.
     if t-s.get('last_scan_ms',0)<60000:
         book.save();return
     s['last_scan_ms']=t
-    if position(api) is not None or api.call('GET','/fapi/v1/openOrders') or api.call('GET','/fapi/v1/openAlgoOrders'):
+    if api.call('GET','/fapi/v1/openOrders'):
         s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
-    s['phase']='WAIT_SIGNAL'
-    p=candidate(api,public,book)
-    if p:
+    expected_algo=set()
+    for slot in slots:
+        with Journal(book.root/slot['file']) as j:
+            c=Coordinator(j,api)
+            for name in ('stop','target'):
+                if j.get(name):expected_algo.add(c.cid(name))
+    open_algos=api.call('GET','/fapi/v1/openAlgoOrders')
+    if any(x.get('clientAlgoId') not in expected_algo for x in open_algos):
+        s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
+    reserved=sum((dec(x.get('modeled_risk','0')) for x in slots),dec(0))
+    plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved)
+    for p in plans:
         if now_ms()-p['signal_observed_ms']>60000:
-            book.save('STALE_PLAN_SKIPPED');return
-        setup(api,p['symbol'],leverage=None if p.get('risk_model') else 2)
+            book.save('STALE_PLAN_SKIPPED');break
+        setup(api,p['symbol'],leverage=None if p.get('risk_model') else 2,require_empty=False)
         if p.get('purpose')=='MULTI_MARKET_TESTNET' and not 0<=now_ms()-p['signal_close_ms']<=CFG.max_data_age_ms:
-            book.save('STALE_AFTER_SETUP');return
-        filename='trade-'+str(s['closed_trades']+1)+'.db'
+            book.save('STALE_AFTER_SETUP');break
+        p['portfolio_slots']=POLICY['max_positions']
+        p['portfolio_symbols']=[x['symbol'] for x in active_slots(s)]
+        trade_id=s.get('next_trade_id',s['closed_trades']+len(active_slots(s))+1)
+        filename='trade-'+str(trade_id)+'.db';s['next_trade_id']=trade_id+1
         # Persist ownership before any order; partial init on crash locks for review.
-        s['active']={'file':filename,'started_ms':now_ms(),'symbol':p['symbol']}
+        slot={'file':filename,'started_ms':now_ms(),'symbol':p['symbol'],'modeled_risk':p['modeled_risk'],'phase':'PREPARED'}
+        s['active']=active_slots(s)+[slot]
         book.save({'event':'SIGNAL_SELECTED','plan':p})
         with Journal(book.root/filename) as j:
-            Coordinator(j,api).prepare(p)
-        tick(book,api,public)
-    else:
-        s['phase']='WAIT_SIGNAL';s['error']=None;book.save()
+            c=Coordinator(j,api);c.prepare(p)
+            slot['phase']=reconcile(c)[0]
+        book.save()
+    s['phase']='ACTIVE_'+str(len(active_slots(s))) if active_slots(s) else 'WAIT_SIGNAL'
+    s['error']=None;book.save()
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)

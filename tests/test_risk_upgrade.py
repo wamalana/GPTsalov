@@ -17,8 +17,9 @@ class UpgradeTests(unittest.TestCase):
     def test_upgrade_preserves_everything_except_policy(self):
         s=self.state();old=deepcopy(s)
         upgrade_policy(s,{**s['policy'],'risk_model':VERSION})
-        self.assertEqual({k:v for k,v in s.items() if k!='policy'},
-                         {k:v for k,v in old.items() if k!='policy'})
+        expected={k:v for k,v in old.items() if k!='policy'}
+        expected.update(active=[],next_trade_id=9)
+        self.assertEqual({k:v for k,v in s.items() if k!='policy'},expected)
 
     def test_reject_active_changed_limits_or_unknown_version(self):
         for change in ('active','cap','version','environment'):

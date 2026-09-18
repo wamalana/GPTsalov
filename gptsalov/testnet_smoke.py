@@ -20,11 +20,15 @@ def small_plan(price,rules):
 def flat_positions(api):
     return all(dec(x['positionAmt'])==0 for x in api.call('GET','/fapi/v3/positionRisk'))
 
-def setup(api,symbol,leverage=2):
+def setup(api,symbol,leverage=2,require_empty=True):
     if leverage is not None and (type(leverage) is not int or leverage not in (1,2)):
         raise ValueError('Invalid Testnet leverage')
-    if not flat_positions(api) or api.call('GET','/fapi/v1/openOrders') or api.call('GET','/fapi/v1/openAlgoOrders'):
+    if require_empty and (not flat_positions(api) or api.call('GET','/fapi/v1/openOrders') or api.call('GET','/fapi/v1/openAlgoOrders')):
         raise ValueError('Testnet account must be empty before smoke test')
+    if not require_empty:
+        positions=api.call('GET','/fapi/v3/positionRisk',symbol=symbol)
+        if any(dec(x['positionAmt'])!=0 for x in positions if x['symbol']==symbol):
+            raise ValueError('Symbol already has a position')
     if api.call('GET','/fapi/v1/positionSide/dual')['dualSidePosition'] is not False:
         raise ValueError('One-way Testnet account required')
     rows=api.call('GET','/fapi/v1/symbolConfig',symbol=symbol)

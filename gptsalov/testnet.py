@@ -231,10 +231,18 @@ class Coordinator:
         row=next(x for x in rows if x['symbol']==p['symbol'])
         if row['marginType'].upper()!='ISOLATED' or ('risk_model' not in p and int(row['leverage'])!=2):
             raise ValueError('Isolated margin and 2x required')
-        if any(dec(x['positionAmt'])!=0 for x in self.api.call('GET','/fapi/v3/positionRisk')):
-            raise ValueError('Dedicated account must be flat')
-        if self.api.call('GET','/fapi/v1/openOrders') or self.api.call('GET','/fapi/v1/openAlgoOrders'):
-            raise ValueError('Dedicated account must have no open orders')
+        positions=[x for x in self.api.call('GET','/fapi/v3/positionRisk') if dec(x['positionAmt'])!=0]
+        regular=self.api.call('GET','/fapi/v1/openOrders')
+        algos=self.api.call('GET','/fapi/v1/openAlgoOrders')
+        if p.get('portfolio_slots')==3 and p.get('purpose')=='MULTI_MARKET_TESTNET':
+            expected=set(p.get('portfolio_symbols',[]))
+            actual={x['symbol'] for x in positions}
+            if (actual!=expected or p['symbol'] in actual or len(actual)>=3
+                    or regular or len(algos)>2*len(actual)
+                    or any(not str(x.get('clientAlgoId','')).startswith('gpts-') for x in algos)):
+                raise ValueError('Multi-slot account ownership mismatch')
+        elif positions or regular or algos:
+            raise ValueError('Dedicated account must be flat and have no open orders')
         from .core import Rules
         rows=self.api.call('GET','/fapi/v1/exchangeInfo')['symbols']
         row=next(x for x in rows if x['symbol']==p['symbol'])
