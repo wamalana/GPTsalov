@@ -500,6 +500,12 @@ VARIANTS = {
                                           max_adverse_drift_r=0.25, cost_gate=0.25)),
     "v2_1h_trail":      (4, "v2", replace(V1, bar_ms=HOUR_MS, max_hold_bars=48, reanchor=True,
                                           max_adverse_drift_r=0.25, cost_gate=0.25, exit_mode="trail")),
+    # 4h trend-following: same v2 signal on 4h bars, holding days instead of hours.
+    "v3_4h_trail":      (16, "v2", replace(V1, bar_ms=4*HOUR_MS, max_hold_bars=42, reanchor=True,
+                                           max_adverse_drift_r=0.25, cost_gate=0.25, exit_mode="trail",
+                                           trail_atr=3.0)),
+    "v3_4h_fixed3R":    (16, "v2_3r", replace(V1, bar_ms=4*HOUR_MS, max_hold_bars=42, reanchor=True,
+                                            max_adverse_drift_r=0.25, cost_gate=0.25)),
 }
 
 
@@ -513,7 +519,8 @@ def run_variant(name, data15: dict, funding=None, cost_mult=1.0, v2_params=V2Par
         sigs = {s: testnet_signals(s, x, kind == "testnet_ra") for s, x in data.items()}
     else:
         btc = data.get("BTCUSDT")
-        sigs = {s: v2_signals(x, v2_params, btc) for s, x in data.items()}
+        params = replace(v2_params, target_r=3.0) if kind == "v2_3r" else v2_params
+        sigs = {s: v2_signals(x, params, btc) for s, x in data.items()}
     res = simulate(data, sigs, eng, funding)
     res.signal_count = sum(len(x) for x in sigs.values())
     return res
