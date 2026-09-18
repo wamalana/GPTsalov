@@ -235,6 +235,7 @@ class Engine:
     min_quote_volume_24h: float = 10_000_000
     long_only: bool = False
     max_positions: int = 1
+    one_per_side: bool = False   # at most one long and one short open/pending
 
     @property
     def fee(self):
@@ -405,13 +406,17 @@ def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None
         free = eng.max_positions-len(positions)-len(pending)
         if free > 0 and t in by_time:
             busy = {p["sym"] for p in positions} | {x[0] for x in pending}
+            sides = {p["side"] for p in positions} | {x[1].side for x in pending}
             open_risk = sum(p["risk"] for p in positions)
             chosen = []
             for sym, sig in _eligible(by_time[t], t, data, idx, qv, eng):
                 if sym in busy or (eng.long_only and sig.side != 1):
                     continue
+                if eng.one_per_side and sig.side in sides:
+                    continue
                 chosen.append((sym, sig))
                 busy.add(sym)
+                sides.add(sig.side)
                 if len(chosen) == free:
                     break
             if chosen:
@@ -524,6 +529,47 @@ VARIANTS = {
     "v3_4h_fixed3R":    (16, "v2_3r", replace(V1, bar_ms=4*HOUR_MS, max_hold_bars=42, reanchor=True,
                                             max_adverse_drift_r=0.25, cost_gate=0.25)),
 }
+
+
+V3 = VARIANTS["v3_4h_trail"][2]
+# Predeclared robustness grid around v3_4h_trail. One knob per row; selection uses
+# in-sample only. A lone positive cell surrounded by negatives means overfit.
+SWEEP = {
+    "base":            (16, V3, V2Params()),
+    "donchian15":      (16, V3, V2Params(donchian=15)),
+    "donchian30":      (16, V3, V2Params(donchian=30)),
+    "ema30":           (16, V3, V2Params(trend_ema=30)),
+    "ema100":          (16, V3, V2Params(trend_ema=100)),
+    "er0.2":           (16, V3, V2Params(er_min=0.2)),
+    "er0.4":           (16, V3, V2Params(er_min=0.4)),
+    "no_btc_filter":   (16, V3, V2Params(btc_filter=False)),
+    "no_volume":       (16, V3, V2Params(volume_mult=0.0)),
+    "no_chase_limit":  (16, V3, V2Params(max_chase_atr=99.0)),
+    "no_volexp_limit": (16, V3, V2Params(max_vol_expansion=99.0)),
+    "stop1.0atr":      (16, V3, V2Params(stop_atr=1.0)),
+    "stop2.0atr":      (16, V3, V2Params(stop_atr=2.0)),
+    "trail2.0":        (16, replace(V3, trail_atr=2.0), V2Params()),
+    "trail4.0":        (16, replace(V3, trail_atr=4.0), V2Params()),
+    "no_breakeven":    (16, replace(V3, breakeven_r=99.0), V2Params()),
+    "hold84":          (16, replace(V3, max_hold_bars=84), V2Params()),
+    "no_cost_gate":    (16, replace(V3, cost_gate=None), V2Params()),
+    "long_only":       (16, replace(V3, long_only=True), V2Params()),
+    "2slots_per_side": (16, replace(V3, max_positions=2, one_per_side=True), V2Params()),
+    "3slots":          (16, replace(V3, max_positions=3), V2Params()),
+    "daily":           (96, replace(V3, bar_ms=24*HOUR_MS, max_hold_bars=30), V2Params()),
+    "2h":              (8, replace(V3, bar_ms=2*HOUR_MS, max_hold_bars=84), V2Params()),
+}
+
+
+def run_sweep_cell(name, data15, funding=None, cost_mult=1.0):
+    factor, eng, params = SWEEP[name]
+    eng = replace(eng, cost_mult=cost_mult)
+    data = {s: resample(x, factor, BAR_MS) for s, x in data15.items()}
+    btc = data.get("BTCUSDT")
+    sigs = {s: v2_signals(x, params, btc) for s, x in data.items()}
+    res = simulate(data, sigs, eng, funding)
+    res.signal_count = sum(len(x) for x in sigs.values())
+    return res
 
 
 def run_variant(name, data15: dict, funding=None, cost_mult=1.0, v2_params=V2Params()):

@@ -99,6 +99,25 @@ class MultiSlot(unittest.TestCase):
         self.assertLessEqual(sum(t.risk for t in r.trades), 100*0.005+1e-9)
 
 
+class PerSide(unittest.TestCase):
+    def test_one_per_side_blocks_second_long_but_allows_short(self):
+        rows = [(100, 100, 100, 100, 1)]+[(100, 100.5, 99.5, 100, 1)]*5
+        data = {f"S{k}USDT": series(rows) for k in range(3)}
+        long = Sig(1, 100.0, 1.0, None, 1.0, 1.0, stop=98.0, target=104.0)
+        short = Sig(-1, 100.0, 1.0, None, 1.0, 0.5, stop=102.0, target=96.0)
+        sigs = {"S0USDT": {0: long}, "S1USDT": {0: long}, "S2USDT": {0: short}}
+        eng = Engine(min_quote_volume_24h=0, max_positions=3, one_per_side=True, max_hold_bars=3)
+        r = simulate(data, sigs, eng)
+        self.assertEqual(sorted(t.side for t in r.trades), [-1, 1])
+        self.assertEqual(r.max_concurrent, 2)
+
+    def test_sweep_cells_run(self):
+        from gptsalov.backtest import SWEEP, run_sweep_cell
+        data = {"BTCUSDT": synthetic(n=4000, seed=1), "S1USDT": synthetic(n=4000, seed=2)}
+        for name in SWEEP:
+            run_sweep_cell(name, data)
+
+
 class RandomWalkSanity(unittest.TestCase):
     def test_no_edge_data_loses_roughly_its_costs(self):
         data = {f"S{k}USDT": synthetic(n=5000, seed=40+k) for k in range(4)}
