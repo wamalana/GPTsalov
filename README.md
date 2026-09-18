@@ -1,5 +1,7 @@
 # GPTsalov v0.1.2 — เริ่มรันระบบทดลอง
 
+ดู [STRATEGY_V2.md](STRATEGY_V2.md) สำหรับผลวิเคราะห์กลยุทธ์และ historical backtest (`python3 -m gptsalov.backtest`)
+
 v0.1.2 เพิ่มการเก็บข้อมูลและประเมิน net reward/risk แบบ observation-only
 ผ่าน `--research-db` โดยไม่เปลี่ยนกลยุทธ์หรือ config เดิม ดู [RESEARCH.md](RESEARCH.md)
 รายงาน JSON เพิ่มเวลาปิดเทรด อายุการสแกน และผลเทรดที่ปิดใน 4 ชั่วโมงล่าสุด
