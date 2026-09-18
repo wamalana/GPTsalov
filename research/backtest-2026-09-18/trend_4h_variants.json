@@ -1,0 +1,979 @@
+{
+ "symbols": {
+  "BTCUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "ETHUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "SOLUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "XRPUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "DOGEUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "BNBUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "ADAUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "LINKUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "AVAXUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "SUIUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "LTCUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "BCHUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "DOTUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "TRXUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "NEARUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "AAVEUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "UNIUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "FILUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "APTUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ],
+  "ARBUSDT": [
+   93504,
+   1704067200000,
+   1788219900000
+  ]
+ },
+ "variants": {
+  "v3_4h_trail": {
+   "all": {
+    "trades": 256,
+    "trades_per_week": 1.86,
+    "win_rate": 0.449,
+    "avg_r": 0.169,
+    "avg_r_ci95": [
+     -0.031,
+     0.383
+    ],
+    "median_r": -0.938,
+    "profit_factor": 1.32,
+    "net_pnl": 23.001,
+    "gross_pnl": 28.609,
+    "costs": 5.608,
+    "costs_per_abs_gross": 0.033,
+    "long": {
+     "n": 151,
+     "avg_r": 0.091
+    },
+    "short": {
+     "n": 105,
+     "avg_r": 0.281
+    },
+    "exits": {
+     "STOP": 240,
+     "TIME": 16
+    }
+   },
+   "final_equity": 123.001,
+   "max_drawdown": 0.0793,
+   "max_concurrent_positions": 1,
+   "signals_generated": 1798,
+   "rejects": {
+    "COST_GATE": 16
+   },
+   "lock_triggers_counted_not_enforced": {
+    "daily_2pct": 0,
+    "drawdown_8pct": 0,
+    "loss_streak_3": 20
+   },
+   "in_sample": {
+    "trades": 196,
+    "trades_per_week": 1.9,
+    "win_rate": 0.454,
+    "avg_r": 0.163,
+    "avg_r_ci95": [
+     -0.069,
+     0.415
+    ],
+    "median_r": -0.933,
+    "profit_factor": 1.31,
+    "net_pnl": 16.416,
+    "gross_pnl": 20.505,
+    "costs": 4.088,
+    "costs_per_abs_gross": 0.033,
+    "long": {
+     "n": 119,
+     "avg_r": 0.128
+    },
+    "short": {
+     "n": 77,
+     "avg_r": 0.216
+    },
+    "exits": {
+     "STOP": 187,
+     "TIME": 9
+    }
+   },
+   "out_of_sample": {
+    "trades": 60,
+    "trades_per_week": 1.74,
+    "win_rate": 0.433,
+    "avg_r": 0.19,
+    "avg_r_ci95": [
+     -0.187,
+     0.624
+    ],
+    "median_r": -0.942,
+    "profit_factor": 1.34,
+    "net_pnl": 6.585,
+    "gross_pnl": 8.104,
+    "costs": 1.519,
+    "costs_per_abs_gross": 0.034,
+    "long": {
+     "n": 32,
+     "avg_r": -0.047
+    },
+    "short": {
+     "n": 28,
+     "avg_r": 0.46
+    },
+    "exits": {
+     "STOP": 53,
+     "TIME": 7
+    }
+   },
+   "by_symbol": {
+    "AAVEUSDT": [
+     20,
+     -0.291
+    ],
+    "ADAUSDT": [
+     13,
+     1.307
+    ],
+    "APTUSDT": [
+     8,
+     1.045
+    ],
+    "ARBUSDT": [
+     9,
+     0.699
+    ],
+    "AVAXUSDT": [
+     13,
+     -0.155
+    ],
+    "BCHUSDT": [
+     17,
+     -0.246
+    ],
+    "BNBUSDT": [
+     15,
+     -0.13
+    ],
+    "BTCUSDT": [
+     23,
+     -0.181
+    ],
+    "DOGEUSDT": [
+     7,
+     0.346
+    ],
+    "DOTUSDT": [
+     8,
+     1.788
+    ],
+    "ETHUSDT": [
+     15,
+     -0.214
+    ],
+    "FILUSDT": [
+     5,
+     0.697
+    ],
+    "LINKUSDT": [
+     10,
+     -0.121
+    ],
+    "LTCUSDT": [
+     8,
+     -0.966
+    ],
+    "NEARUSDT": [
+     18,
+     -0.056
+    ],
+    "SOLUSDT": [
+     19,
+     -0.065
+    ],
+    "SUIUSDT": [
+     10,
+     0.283
+    ],
+    "TRXUSDT": [
+     15,
+     -0.125
+    ],
+    "UNIUSDT": [
+     13,
+     0.702
+    ],
+    "XRPUSDT": [
+     10,
+     1.385
+    ]
+   },
+   "by_quarter": {
+    "2024Q1": [
+     26,
+     0.096
+    ],
+    "2024Q2": [
+     24,
+     -0.338
+    ],
+    "2024Q3": [
+     27,
+     0.621
+    ],
+    "2024Q4": [
+     27,
+     0.17
+    ],
+    "2025Q1": [
+     21,
+     0.195
+    ],
+    "2025Q2": [
+     27,
+     -0.072
+    ],
+    "2025Q3": [
+     23,
+     0.467
+    ],
+    "2025Q4": [
+     21,
+     0.154
+    ],
+    "2026Q1": [
+     20,
+     0.182
+    ],
+    "2026Q2": [
+     26,
+     -0.113
+    ],
+    "2026Q3": [
+     14,
+     0.763
+    ]
+   },
+   "by_utc_4h": {
+    "0": [
+     37,
+     -0.105
+    ],
+    "4": [
+     43,
+     0.142
+    ],
+    "8": [
+     25,
+     -0.146
+    ],
+    "12": [
+     40,
+     0.316
+    ],
+    "16": [
+     75,
+     0.054
+    ],
+    "20": [
+     36,
+     0.777
+    ]
+   },
+   "avg_r_without_best_symbol": [
+    "ADAUSDT",
+    0.108
+   ],
+   "avg_gross_r": 0.209,
+   "avg_cost_r": 0.04
+  },
+  "v3_4h_fixed3R": {
+   "all": {
+    "trades": 272,
+    "trades_per_week": 1.98,
+    "win_rate": 0.316,
+    "avg_r": 0.121,
+    "avg_r_ci95": [
+     -0.071,
+     0.327
+    ],
+    "median_r": -0.96,
+    "profit_factor": 1.18,
+    "net_pnl": 16.872,
+    "gross_pnl": 22.14,
+    "costs": 5.268,
+    "costs_per_abs_gross": 0.025,
+    "long": {
+     "n": 158,
+     "avg_r": 0.039
+    },
+    "short": {
+     "n": 114,
+     "avg_r": 0.235
+    },
+    "exits": {
+     "STOP": 182,
+     "TARGET": 71,
+     "TIME": 19
+    }
+   },
+   "final_equity": 116.872,
+   "max_drawdown": 0.0706,
+   "max_concurrent_positions": 1,
+   "signals_generated": 1798,
+   "rejects": {
+    "COST_GATE": 15
+   },
+   "lock_triggers_counted_not_enforced": {
+    "daily_2pct": 0,
+    "drawdown_8pct": 0,
+    "loss_streak_3": 29
+   },
+   "in_sample": {
+    "trades": 209,
+    "trades_per_week": 2.02,
+    "win_rate": 0.306,
+    "avg_r": 0.097,
+    "avg_r_ci95": [
+     -0.132,
+     0.325
+    ],
+    "median_r": -0.964,
+    "profit_factor": 1.13,
+    "net_pnl": 9.945,
+    "gross_pnl": 13.764,
+    "costs": 3.819,
+    "costs_per_abs_gross": 0.024,
+    "long": {
+     "n": 125,
+     "avg_r": 0.056
+    },
+    "short": {
+     "n": 84,
+     "avg_r": 0.16
+    },
+    "exits": {
+     "STOP": 142,
+     "TARGET": 55,
+     "TIME": 12
+    }
+   },
+   "out_of_sample": {
+    "trades": 63,
+    "trades_per_week": 1.85,
+    "win_rate": 0.349,
+    "avg_r": 0.201,
+    "avg_r_ci95": [
+     -0.183,
+     0.607
+    ],
+    "median_r": -0.953,
+    "profit_factor": 1.31,
+    "net_pnl": 6.927,
+    "gross_pnl": 8.376,
+    "costs": 1.448,
+    "costs_per_abs_gross": 0.029,
+    "long": {
+     "n": 33,
+     "avg_r": -0.024
+    },
+    "short": {
+     "n": 30,
+     "avg_r": 0.448
+    },
+    "exits": {
+     "STOP": 40,
+     "TARGET": 16,
+     "TIME": 7
+    }
+   },
+   "by_symbol": {
+    "AAVEUSDT": [
+     20,
+     -0.433
+    ],
+    "ADAUSDT": [
+     14,
+     1.093
+    ],
+    "APTUSDT": [
+     9,
+     0.533
+    ],
+    "ARBUSDT": [
+     12,
+     0.508
+    ],
+    "AVAXUSDT": [
+     15,
+     0.174
+    ],
+    "BCHUSDT": [
+     18,
+     -0.284
+    ],
+    "BNBUSDT": [
+     15,
+     -0.245
+    ],
+    "BTCUSDT": [
+     18,
+     -0.366
+    ],
+    "DOGEUSDT": [
+     9,
+     0.266
+    ],
+    "DOTUSDT": [
+     13,
+     0.6
+    ],
+    "ETHUSDT": [
+     15,
+     -0.37
+    ],
+    "FILUSDT": [
+     7,
+     -0.213
+    ],
+    "LINKUSDT": [
+     8,
+     -0.064
+    ],
+    "LTCUSDT": [
+     9,
+     -0.562
+    ],
+    "NEARUSDT": [
+     16,
+     0.208
+    ],
+    "SOLUSDT": [
+     20,
+     0.145
+    ],
+    "SUIUSDT": [
+     16,
+     0.122
+    ],
+    "TRXUSDT": [
+     14,
+     0.141
+    ],
+    "UNIUSDT": [
+     12,
+     1.134
+    ],
+    "XRPUSDT": [
+     12,
+     0.572
+    ]
+   },
+   "by_quarter": {
+    "2024Q1": [
+     25,
+     -0.043
+    ],
+    "2024Q2": [
+     22,
+     -0.182
+    ],
+    "2024Q3": [
+     30,
+     0.581
+    ],
+    "2024Q4": [
+     28,
+     0.112
+    ],
+    "2025Q1": [
+     26,
+     0.138
+    ],
+    "2025Q2": [
+     29,
+     -0.203
+    ],
+    "2025Q3": [
+     24,
+     0.362
+    ],
+    "2025Q4": [
+     25,
+     -0.06
+    ],
+    "2026Q1": [
+     22,
+     0.407
+    ],
+    "2026Q2": [
+     26,
+     -0.146
+    ],
+    "2026Q3": [
+     15,
+     0.499
+    ]
+   },
+   "by_utc_4h": {
+    "0": [
+     41,
+     -0.099
+    ],
+    "4": [
+     44,
+     0.073
+    ],
+    "8": [
+     28,
+     0.014
+    ],
+    "12": [
+     40,
+     0.564
+    ],
+    "16": [
+     77,
+     0.109
+    ],
+    "20": [
+     42,
+     0.06
+    ]
+   },
+   "avg_r_without_best_symbol": [
+    "ADAUSDT",
+    0.069
+   ],
+   "avg_gross_r": 0.157,
+   "avg_cost_r": 0.036
+  },
+  "v2_1h_fixed2R": {
+   "all": {
+    "trades": 1189,
+    "trades_per_week": 8.59,
+    "win_rate": 0.368,
+    "avg_r": -0.015,
+    "avg_r_ci95": [
+     -0.082,
+     0.055
+    ],
+    "median_r": -0.935,
+    "profit_factor": 0.97,
+    "net_pnl": -10.557,
+    "gross_pnl": 19.048,
+    "costs": 29.605,
+    "costs_per_abs_gross": 0.045,
+    "long": {
+     "n": 653,
+     "avg_r": 0.0
+    },
+    "short": {
+     "n": 536,
+     "avg_r": -0.034
+    },
+    "exits": {
+     "STOP": 714,
+     "TARGET": 371,
+     "TIME": 104
+    }
+   },
+   "final_equity": 89.443,
+   "max_drawdown": 0.2536,
+   "max_concurrent_positions": 1,
+   "signals_generated": 7195,
+   "rejects": {
+    "COST_GATE": 376
+   },
+   "lock_triggers_counted_not_enforced": {
+    "daily_2pct": 0,
+    "drawdown_8pct": 9,
+    "loss_streak_3": 113
+   },
+   "in_sample": {
+    "trades": 931,
+    "trades_per_week": 8.98,
+    "win_rate": 0.362,
+    "avg_r": -0.033,
+    "avg_r_ci95": [
+     -0.112,
+     0.048
+    ],
+    "median_r": -0.937,
+    "profit_factor": 0.94,
+    "net_pnl": -15.818,
+    "gross_pnl": 7.367,
+    "costs": 23.185,
+    "costs_per_abs_gross": 0.045,
+    "long": {
+     "n": 518,
+     "avg_r": -0.016
+    },
+    "short": {
+     "n": 413,
+     "avg_r": -0.055
+    },
+    "exits": {
+     "STOP": 565,
+     "TARGET": 283,
+     "TIME": 83
+    }
+   },
+   "out_of_sample": {
+    "trades": 258,
+    "trades_per_week": 7.49,
+    "win_rate": 0.388,
+    "avg_r": 0.051,
+    "avg_r_ci95": [
+     -0.102,
+     0.202
+    ],
+    "median_r": -0.928,
+    "profit_factor": 1.08,
+    "net_pnl": 5.261,
+    "gross_pnl": 11.681,
+    "costs": 6.42,
+    "costs_per_abs_gross": 0.049,
+    "long": {
+     "n": 135,
+     "avg_r": 0.062
+    },
+    "short": {
+     "n": 123,
+     "avg_r": 0.039
+    },
+    "exits": {
+     "STOP": 149,
+     "TARGET": 88,
+     "TIME": 21
+    }
+   },
+   "by_symbol": {
+    "AAVEUSDT": [
+     69,
+     -0.133
+    ],
+    "ADAUSDT": [
+     71,
+     -0.107
+    ],
+    "APTUSDT": [
+     55,
+     -0.132
+    ],
+    "ARBUSDT": [
+     66,
+     0.067
+    ],
+    "AVAXUSDT": [
+     65,
+     -0.063
+    ],
+    "BCHUSDT": [
+     51,
+     -0.025
+    ],
+    "BNBUSDT": [
+     39,
+     0.007
+    ],
+    "BTCUSDT": [
+     47,
+     0.027
+    ],
+    "DOGEUSDT": [
+     59,
+     0.125
+    ],
+    "DOTUSDT": [
+     63,
+     0.125
+    ],
+    "ETHUSDT": [
+     44,
+     0.223
+    ],
+    "FILUSDT": [
+     77,
+     -0.056
+    ],
+    "LINKUSDT": [
+     52,
+     -0.009
+    ],
+    "LTCUSDT": [
+     48,
+     -0.091
+    ],
+    "NEARUSDT": [
+     76,
+     0.058
+    ],
+    "SOLUSDT": [
+     87,
+     -0.041
+    ],
+    "SUIUSDT": [
+     78,
+     -0.172
+    ],
+    "TRXUSDT": [
+     7,
+     0.147
+    ],
+    "UNIUSDT": [
+     74,
+     -0.1
+    ],
+    "XRPUSDT": [
+     61,
+     0.138
+    ]
+   },
+   "by_quarter": {
+    "2024Q1": [
+     115,
+     -0.032
+    ],
+    "2024Q2": [
+     97,
+     0.064
+    ],
+    "2024Q3": [
+     127,
+     -0.048
+    ],
+    "2024Q4": [
+     130,
+     0.064
+    ],
+    "2025Q1": [
+     123,
+     -0.073
+    ],
+    "2025Q2": [
+     122,
+     -0.008
+    ],
+    "2025Q3": [
+     111,
+     -0.018
+    ],
+    "2025Q4": [
+     106,
+     -0.225
+    ],
+    "2026Q1": [
+     107,
+     0.156
+    ],
+    "2026Q2": [
+     91,
+     -0.028
+    ],
+    "2026Q3": [
+     60,
+     -0.017
+    ]
+   },
+   "by_utc_4h": {
+    "0": [
+     176,
+     0.054
+    ],
+    "4": [
+     126,
+     -0.151
+    ],
+    "8": [
+     186,
+     -0.142
+    ],
+    "12": [
+     285,
+     0.079
+    ],
+    "16": [
+     279,
+     -0.011
+    ],
+    "20": [
+     137,
+     -0.01
+    ]
+   },
+   "avg_r_without_best_symbol": [
+    "ETHUSDT",
+    -0.024
+   ],
+   "avg_gross_r": 0.037,
+   "avg_cost_r": 0.052
+  }
+ },
+ "stress": {
+  "v3_4h_trail": {
+   "trades": 245,
+   "trades_per_week": 1.78,
+   "win_rate": 0.453,
+   "avg_r": 0.16,
+   "avg_r_ci95": [
+    -0.049,
+    0.386
+   ],
+   "median_r": -0.945,
+   "profit_factor": 1.3,
+   "net_pnl": 20.633,
+   "gross_pnl": 27.331,
+   "costs": 6.698,
+   "costs_per_abs_gross": 0.042,
+   "long": {
+    "n": 140,
+    "avg_r": 0.095
+   },
+   "short": {
+    "n": 105,
+    "avg_r": 0.248
+   },
+   "exits": {
+    "STOP": 231,
+    "TIME": 14
+   }
+  },
+  "v3_4h_fixed3R": {
+   "trades": 268,
+   "trades_per_week": 1.95,
+   "win_rate": 0.31,
+   "avg_r": 0.094,
+   "avg_r_ci95": [
+    -0.096,
+    0.289
+   ],
+   "median_r": -0.964,
+   "profit_factor": 1.13,
+   "net_pnl": 12.429,
+   "gross_pnl": 18.992,
+   "costs": 6.563,
+   "costs_per_abs_gross": 0.034,
+   "long": {
+    "n": 151,
+    "avg_r": 0.044
+   },
+   "short": {
+    "n": 117,
+    "avg_r": 0.158
+   },
+   "exits": {
+    "STOP": 181,
+    "TARGET": 70,
+    "TIME": 17
+   }
+  },
+  "v2_1h_fixed2R": {
+   "trades": 1020,
+   "trades_per_week": 7.37,
+   "win_rate": 0.375,
+   "avg_r": -0.022,
+   "avg_r_ci95": [
+    -0.101,
+    0.057
+   ],
+   "median_r": -0.947,
+   "profit_factor": 0.96,
+   "net_pnl": -12.071,
+   "gross_pnl": 20.559,
+   "costs": 32.63,
+   "costs_per_abs_gross": 0.059,
+   "long": {
+    "n": 569,
+    "avg_r": -0.024
+   },
+   "short": {
+    "n": 451,
+    "avg_r": -0.019
+   },
+   "exits": {
+    "STOP": 604,
+    "TARGET": 318,
+    "TIME": 98
+   }
+  }
+ },
+ "risk_promotion_gate_pass_prob": {
+  "v3_4h_trail": 0.1755,
+  "v3_4h_fixed3R": 0.0257,
+  "v2_1h_fixed2R": 0.0783
+ }
+}

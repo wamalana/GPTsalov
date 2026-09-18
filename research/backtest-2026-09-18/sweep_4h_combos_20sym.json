@@ -1,0 +1,596 @@
+{
+ "stop0.75atr": {
+  "all": {
+   "trades": 347,
+   "trades_per_week": 2.52,
+   "win_rate": 0.372,
+   "avg_r": 0.197,
+   "avg_r_ci95": [
+    -0.068,
+    0.481
+   ],
+   "median_r": -0.937,
+   "profit_factor": 1.31,
+   "net_pnl": 36.612,
+   "gross_pnl": 48.131,
+   "costs": 11.519,
+   "costs_per_abs_gross": 0.043,
+   "long": {
+    "n": 211,
+    "avg_r": 0.18
+   },
+   "short": {
+    "n": 136,
+    "avg_r": 0.223
+   },
+   "exits": {
+    "STOP": 343,
+    "TIME": 4
+   }
+  },
+  "final_equity": 136.612,
+  "max_drawdown": 0.129,
+  "max_concurrent_positions": 1,
+  "signals_generated": 1798,
+  "rejects": {
+   "COST_GATE": 105
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 4,
+   "loss_streak_3": 32
+  },
+  "in_sample": {
+   "trades": 272,
+   "trades_per_week": 2.64,
+   "win_rate": 0.393,
+   "avg_r": 0.255,
+   "avg_r_ci95": [
+    -0.06,
+    0.608
+   ],
+   "median_r": -0.937,
+   "profit_factor": 1.45,
+   "net_pnl": 37.987,
+   "gross_pnl": 46.215,
+   "costs": 8.228,
+   "costs_per_abs_gross": 0.04,
+   "long": {
+    "n": 174,
+    "avg_r": 0.26
+   },
+   "short": {
+    "n": 98,
+    "avg_r": 0.247
+   },
+   "exits": {
+    "STOP": 270,
+    "TIME": 2
+   }
+  },
+  "out_of_sample": {
+   "trades": 75,
+   "trades_per_week": 2.18,
+   "win_rate": 0.293,
+   "avg_r": -0.016,
+   "avg_r_ci95": [
+    -0.443,
+    0.528
+   ],
+   "median_r": -0.937,
+   "profit_factor": 0.96,
+   "net_pnl": -1.375,
+   "gross_pnl": 1.916,
+   "costs": 3.291,
+   "costs_per_abs_gross": 0.051,
+   "long": {
+    "n": 37,
+    "avg_r": -0.198
+   },
+   "short": {
+    "n": 38,
+    "avg_r": 0.161
+   },
+   "exits": {
+    "STOP": 73,
+    "TIME": 2
+   }
+  },
+  "stress_avg_r": 0.175
+ },
+ "stop1.25atr": {
+  "all": {
+   "trades": 276,
+   "trades_per_week": 2.01,
+   "win_rate": 0.457,
+   "avg_r": 0.245,
+   "avg_r_ci95": [
+    0.02,
+    0.488
+   ],
+   "median_r": -0.932,
+   "profit_factor": 1.48,
+   "net_pnl": 38.423,
+   "gross_pnl": 45.427,
+   "costs": 7.004,
+   "costs_per_abs_gross": 0.035,
+   "long": {
+    "n": 162,
+    "avg_r": 0.185
+   },
+   "short": {
+    "n": 114,
+    "avg_r": 0.332
+   },
+   "exits": {
+    "STOP": 266,
+    "TIME": 10
+   }
+  },
+  "final_equity": 138.423,
+  "max_drawdown": 0.0799,
+  "max_concurrent_positions": 1,
+  "signals_generated": 1798,
+  "rejects": {
+   "COST_GATE": 29
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 0,
+   "loss_streak_3": 19
+  },
+  "in_sample": {
+   "trades": 213,
+   "trades_per_week": 2.07,
+   "win_rate": 0.451,
+   "avg_r": 0.24,
+   "avg_r_ci95": [
+    -0.02,
+    0.534
+   ],
+   "median_r": -0.932,
+   "profit_factor": 1.46,
+   "net_pnl": 27.718,
+   "gross_pnl": 32.671,
+   "costs": 4.953,
+   "costs_per_abs_gross": 0.034,
+   "long": {
+    "n": 129,
+    "avg_r": 0.23
+   },
+   "short": {
+    "n": 84,
+    "avg_r": 0.256
+   },
+   "exits": {
+    "STOP": 208,
+    "TIME": 5
+   }
+  },
+  "out_of_sample": {
+   "trades": 63,
+   "trades_per_week": 1.83,
+   "win_rate": 0.476,
+   "avg_r": 0.263,
+   "avg_r_ci95": [
+    -0.109,
+    0.715
+   ],
+   "median_r": -0.926,
+   "profit_factor": 1.51,
+   "net_pnl": 10.705,
+   "gross_pnl": 12.756,
+   "costs": 2.051,
+   "costs_per_abs_gross": 0.039,
+   "long": {
+    "n": 33,
+    "avg_r": 0.007
+   },
+   "short": {
+    "n": 30,
+    "avg_r": 0.544
+   },
+   "exits": {
+    "STOP": 58,
+    "TIME": 5
+   }
+  },
+  "stress_avg_r": 0.256
+ },
+ "stop1.0_2slots": {
+  "all": {
+   "trades": 306,
+   "trades_per_week": 2.22,
+   "win_rate": 0.435,
+   "avg_r": 0.276,
+   "avg_r_ci95": [
+    0.027,
+    0.558
+   ],
+   "median_r": -0.937,
+   "profit_factor": 1.52,
+   "net_pnl": 22.863,
+   "gross_pnl": 27.038,
+   "costs": 4.175,
+   "costs_per_abs_gross": 0.038,
+   "long": {
+    "n": 185,
+    "avg_r": 0.198
+   },
+   "short": {
+    "n": 121,
+    "avg_r": 0.395
+   },
+   "exits": {
+    "STOP": 299,
+    "TIME": 7
+   }
+  },
+  "final_equity": 122.863,
+  "max_drawdown": 0.0596,
+  "max_concurrent_positions": 2,
+  "signals_generated": 1798,
+  "rejects": {
+   "COST_GATE": 57
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 0,
+   "loss_streak_3": 26
+  },
+  "in_sample": {
+   "trades": 240,
+   "trades_per_week": 2.33,
+   "win_rate": 0.433,
+   "avg_r": 0.263,
+   "avg_r_ci95": [
+    -0.018,
+    0.566
+   ],
+   "median_r": -0.938,
+   "profit_factor": 1.5,
+   "net_pnl": 16.594,
+   "gross_pnl": 19.649,
+   "costs": 3.055,
+   "costs_per_abs_gross": 0.037,
+   "long": {
+    "n": 150,
+    "avg_r": 0.249
+   },
+   "short": {
+    "n": 90,
+    "avg_r": 0.287
+   },
+   "exits": {
+    "STOP": 238,
+    "TIME": 2
+   }
+  },
+  "out_of_sample": {
+   "trades": 66,
+   "trades_per_week": 1.92,
+   "win_rate": 0.439,
+   "avg_r": 0.322,
+   "avg_r_ci95": [
+    -0.162,
+    0.824
+   ],
+   "median_r": -0.937,
+   "profit_factor": 1.6,
+   "net_pnl": 6.269,
+   "gross_pnl": 7.389,
+   "costs": 1.12,
+   "costs_per_abs_gross": 0.041,
+   "long": {
+    "n": 35,
+    "avg_r": -0.023
+   },
+   "short": {
+    "n": 31,
+    "avg_r": 0.711
+   },
+   "exits": {
+    "STOP": 61,
+    "TIME": 5
+   }
+  },
+  "stress_avg_r": 0.229
+ },
+ "stop1.0_3slots": {
+  "all": {
+   "trades": 683,
+   "trades_per_week": 4.96,
+   "win_rate": 0.423,
+   "avg_r": 0.202,
+   "avg_r_ci95": [
+    0.039,
+    0.364
+   ],
+   "median_r": -0.939,
+   "profit_factor": 1.36,
+   "net_pnl": 24.925,
+   "gross_pnl": 31.184,
+   "costs": 6.259,
+   "costs_per_abs_gross": 0.038,
+   "long": {
+    "n": 383,
+    "avg_r": 0.158
+   },
+   "short": {
+    "n": 300,
+    "avg_r": 0.257
+   },
+   "exits": {
+    "STOP": 670,
+    "TIME": 13
+   }
+  },
+  "final_equity": 124.925,
+  "max_drawdown": 0.0549,
+  "max_concurrent_positions": 3,
+  "signals_generated": 1798,
+  "rejects": {
+   "COST_GATE": 88
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 0,
+   "loss_streak_3": 57
+  },
+  "in_sample": {
+   "trades": 526,
+   "trades_per_week": 5.1,
+   "win_rate": 0.422,
+   "avg_r": 0.222,
+   "avg_r_ci95": [
+    0.02,
+    0.425
+   ],
+   "median_r": -0.943,
+   "profit_factor": 1.4,
+   "net_pnl": 20.712,
+   "gross_pnl": 25.179,
+   "costs": 4.467,
+   "costs_per_abs_gross": 0.036,
+   "long": {
+    "n": 308,
+    "avg_r": 0.182
+   },
+   "short": {
+    "n": 218,
+    "avg_r": 0.278
+   },
+   "exits": {
+    "STOP": 520,
+    "TIME": 6
+   }
+  },
+  "out_of_sample": {
+   "trades": 157,
+   "trades_per_week": 4.56,
+   "win_rate": 0.427,
+   "avg_r": 0.135,
+   "avg_r_ci95": [
+    -0.137,
+    0.426
+   ],
+   "median_r": -0.934,
+   "profit_factor": 1.24,
+   "net_pnl": 4.213,
+   "gross_pnl": 6.005,
+   "costs": 1.793,
+   "costs_per_abs_gross": 0.046,
+   "long": {
+    "n": 75,
+    "avg_r": 0.061
+   },
+   "short": {
+    "n": 82,
+    "avg_r": 0.202
+   },
+   "exits": {
+    "STOP": 150,
+    "TIME": 7
+   }
+  },
+  "stress_avg_r": 0.178
+ },
+ "stop1.0_er0.4": {
+  "all": {
+   "trades": 254,
+   "trades_per_week": 1.85,
+   "win_rate": 0.394,
+   "avg_r": 0.245,
+   "avg_r_ci95": [
+    -0.059,
+    0.568
+   ],
+   "median_r": -0.94,
+   "profit_factor": 1.44,
+   "net_pnl": 33.764,
+   "gross_pnl": 40.5,
+   "costs": 6.736,
+   "costs_per_abs_gross": 0.036,
+   "long": {
+    "n": 148,
+    "avg_r": 0.296
+   },
+   "short": {
+    "n": 106,
+    "avg_r": 0.174
+   },
+   "exits": {
+    "STOP": 250,
+    "TIME": 4
+   }
+  },
+  "final_equity": 133.764,
+  "max_drawdown": 0.1445,
+  "max_concurrent_positions": 1,
+  "signals_generated": 1112,
+  "rejects": {
+   "COST_GATE": 38
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 4,
+   "loss_streak_3": 22
+  },
+  "in_sample": {
+   "trades": 201,
+   "trades_per_week": 1.97,
+   "win_rate": 0.398,
+   "avg_r": 0.268,
+   "avg_r_ci95": [
+    -0.094,
+    0.654
+   ],
+   "median_r": -0.941,
+   "profit_factor": 1.5,
+   "net_pnl": 28.538,
+   "gross_pnl": 33.32,
+   "costs": 4.782,
+   "costs_per_abs_gross": 0.034,
+   "long": {
+    "n": 123,
+    "avg_r": 0.324
+   },
+   "short": {
+    "n": 78,
+    "avg_r": 0.179
+   },
+   "exits": {
+    "STOP": 200,
+    "TIME": 1
+   }
+  },
+  "out_of_sample": {
+   "trades": 53,
+   "trades_per_week": 1.54,
+   "win_rate": 0.377,
+   "avg_r": 0.158,
+   "avg_r_ci95": [
+    -0.273,
+    0.662
+   ],
+   "median_r": -0.939,
+   "profit_factor": 1.26,
+   "net_pnl": 5.226,
+   "gross_pnl": 7.179,
+   "costs": 1.954,
+   "costs_per_abs_gross": 0.043,
+   "long": {
+    "n": 25,
+    "avg_r": 0.159
+   },
+   "short": {
+    "n": 28,
+    "avg_r": 0.157
+   },
+   "exits": {
+    "STOP": 50,
+    "TIME": 3
+   }
+  },
+  "stress_avg_r": 0.175
+ },
+ "stop1.0_trail4": {
+  "all": {
+   "trades": 278,
+   "trades_per_week": 2.03,
+   "win_rate": 0.424,
+   "avg_r": 0.327,
+   "avg_r_ci95": [
+    0.04,
+    0.653
+   ],
+   "median_r": -0.939,
+   "profit_factor": 1.63,
+   "net_pnl": 53.936,
+   "gross_pnl": 62.232,
+   "costs": 8.297,
+   "costs_per_abs_gross": 0.037,
+   "long": {
+    "n": 161,
+    "avg_r": 0.278
+   },
+   "short": {
+    "n": 117,
+    "avg_r": 0.394
+   },
+   "exits": {
+    "STOP": 267,
+    "TIME": 11
+   }
+  },
+  "final_equity": 153.936,
+  "max_drawdown": 0.1402,
+  "max_concurrent_positions": 1,
+  "signals_generated": 1798,
+  "rejects": {
+   "COST_GATE": 49
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 6,
+   "loss_streak_3": 24
+  },
+  "in_sample": {
+   "trades": 219,
+   "trades_per_week": 2.13,
+   "win_rate": 0.42,
+   "avg_r": 0.308,
+   "avg_r_ci95": [
+    -0.023,
+    0.69
+   ],
+   "median_r": -0.942,
+   "profit_factor": 1.59,
+   "net_pnl": 37.408,
+   "gross_pnl": 43.235,
+   "costs": 5.827,
+   "costs_per_abs_gross": 0.035,
+   "long": {
+    "n": 133,
+    "avg_r": 0.328
+   },
+   "short": {
+    "n": 86,
+    "avg_r": 0.276
+   },
+   "exits": {
+    "STOP": 214,
+    "TIME": 5
+   }
+  },
+  "out_of_sample": {
+   "trades": 59,
+   "trades_per_week": 1.73,
+   "win_rate": 0.441,
+   "avg_r": 0.398,
+   "avg_r_ci95": [
+    -0.137,
+    1.066
+   ],
+   "median_r": -0.934,
+   "profit_factor": 1.76,
+   "net_pnl": 16.527,
+   "gross_pnl": 18.997,
+   "costs": 2.47,
+   "costs_per_abs_gross": 0.041,
+   "long": {
+    "n": 28,
+    "avg_r": 0.04
+   },
+   "short": {
+    "n": 31,
+    "avg_r": 0.722
+   },
+   "exits": {
+    "STOP": 53,
+    "TIME": 6
+   }
+  },
+  "stress_avg_r": 0.222
+ }
+}

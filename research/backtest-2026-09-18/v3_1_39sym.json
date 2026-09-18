@@ -1,0 +1,650 @@
+{
+ "v3_1_4h_trail": {
+  "all": {
+   "trades": 328,
+   "trades_per_week": 2.38,
+   "win_rate": 0.421,
+   "avg_r": 0.252,
+   "avg_r_ci95": [
+    0.011,
+    0.488
+   ],
+   "median_r": -0.94,
+   "profit_factor": 1.45,
+   "net_pnl": 22.378,
+   "gross_pnl": 27.413,
+   "costs": 5.034,
+   "costs_per_abs_gross": 0.041,
+   "long": {
+    "n": 198,
+    "avg_r": 0.142
+   },
+   "short": {
+    "n": 130,
+    "avg_r": 0.42
+   },
+   "exits": {
+    "STOP": 319,
+    "TIME": 9
+   }
+  },
+  "final_equity": 122.378,
+  "max_drawdown": 0.0502,
+  "max_concurrent_positions": 2,
+  "signals_generated": 3339,
+  "rejects": {
+   "COST_GATE": 32
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 0,
+   "loss_streak_3": 26
+  },
+  "in_sample": {
+   "trades": 253,
+   "trades_per_week": 2.46,
+   "win_rate": 0.435,
+   "avg_r": 0.305,
+   "avg_r_ci95": [
+    0.038,
+    0.603
+   ],
+   "median_r": -0.938,
+   "profit_factor": 1.57,
+   "net_pnl": 20.729,
+   "gross_pnl": 23.71,
+   "costs": 2.981,
+   "costs_per_abs_gross": 0.032,
+   "long": {
+    "n": 158,
+    "avg_r": 0.224
+   },
+   "short": {
+    "n": 95,
+    "avg_r": 0.438
+   },
+   "exits": {
+    "STOP": 249,
+    "TIME": 4
+   }
+  },
+  "out_of_sample": {
+   "trades": 75,
+   "trades_per_week": 2.18,
+   "win_rate": 0.373,
+   "avg_r": 0.076,
+   "avg_r_ci95": [
+    -0.327,
+    0.522
+   ],
+   "median_r": -0.941,
+   "profit_factor": 1.12,
+   "net_pnl": 1.649,
+   "gross_pnl": 3.703,
+   "costs": 2.054,
+   "costs_per_abs_gross": 0.072,
+   "long": {
+    "n": 40,
+    "avg_r": -0.18
+   },
+   "short": {
+    "n": 35,
+    "avg_r": 0.37
+   },
+   "exits": {
+    "STOP": 70,
+    "TIME": 5
+   }
+  },
+  "by_symbol": {
+   "AAVEUSDT": [
+    15,
+    -0.357
+   ],
+   "ADAUSDT": [
+    15,
+    2.493
+   ],
+   "APTUSDT": [
+    7,
+    -0.277
+   ],
+   "ARBUSDT": [
+    4,
+    -0.971
+   ],
+   "AVAXUSDT": [
+    14,
+    -0.595
+   ],
+   "AXSUSDT": [
+    3,
+    -1.082
+   ],
+   "BCHUSDT": [
+    13,
+    -0.091
+   ],
+   "BNBUSDT": [
+    15,
+    -0.593
+   ],
+   "BTCUSDT": [
+    16,
+    -0.178
+   ],
+   "DOGEUSDT": [
+    13,
+    0.077
+   ],
+   "DOTUSDT": [
+    7,
+    1.139
+   ],
+   "ETCUSDT": [
+    3,
+    -0.638
+   ],
+   "ETHUSDT": [
+    21,
+    1.058
+   ],
+   "FETUSDT": [
+    5,
+    0.487
+   ],
+   "FILUSDT": [
+    11,
+    0.415
+   ],
+   "GALAUSDT": [
+    3,
+    -0.642
+   ],
+   "ICPUSDT": [
+    2,
+    -0.975
+   ],
+   "IMXUSDT": [
+    1,
+    -0.972
+   ],
+   "INJUSDT": [
+    4,
+    -0.973
+   ],
+   "LINKUSDT": [
+    18,
+    -0.101
+   ],
+   "LTCUSDT": [
+    10,
+    -0.852
+   ],
+   "MATICUSDT": [
+    5,
+    1.554
+   ],
+   "NEARUSDT": [
+    13,
+    0.153
+   ],
+   "OPUSDT": [
+    5,
+    -0.77
+   ],
+   "ORDIUSDT": [
+    7,
+    -0.159
+   ],
+   "RUNEUSDT": [
+    1,
+    0.006
+   ],
+   "SANDUSDT": [
+    1,
+    4.921
+   ],
+   "SEIUSDT": [
+    6,
+    -0.56
+   ],
+   "SOLUSDT": [
+    21,
+    0.079
+   ],
+   "STXUSDT": [
+    4,
+    -0.723
+   ],
+   "SUIUSDT": [
+    10,
+    1.093
+   ],
+   "TIAUSDT": [
+    8,
+    0.526
+   ],
+   "UNIUSDT": [
+    7,
+    2.275
+   ],
+   "WIFUSDT": [
+    11,
+    -0.009
+   ],
+   "WLDUSDT": [
+    16,
+    -0.125
+   ],
+   "XRPUSDT": [
+    13,
+    2.29
+   ]
+  },
+  "by_quarter": {
+   "2024Q1": [
+    40,
+    -0.064
+   ],
+   "2024Q2": [
+    29,
+    0.017
+   ],
+   "2024Q3": [
+    32,
+    0.966
+   ],
+   "2024Q4": [
+    41,
+    0.408
+   ],
+   "2025Q1": [
+    27,
+    0.35
+   ],
+   "2025Q2": [
+    34,
+    0.092
+   ],
+   "2025Q3": [
+    27,
+    0.436
+   ],
+   "2025Q4": [
+    23,
+    0.312
+   ],
+   "2026Q1": [
+    28,
+    0.111
+   ],
+   "2026Q2": [
+    27,
+    -0.032
+   ],
+   "2026Q3": [
+    20,
+    0.173
+   ]
+  },
+  "avg_r_without_best_symbol": [
+   "ADAUSDT",
+   0.145
+  ],
+  "stress_1_5": {
+   "trades": 318,
+   "trades_per_week": 2.31,
+   "win_rate": 0.396,
+   "avg_r": 0.198,
+   "avg_r_ci95": [
+    -0.031,
+    0.459
+   ],
+   "median_r": -0.953,
+   "profit_factor": 1.33,
+   "net_pnl": 16.486,
+   "gross_pnl": 22.454,
+   "costs": 5.968,
+   "costs_per_abs_gross": 0.052,
+   "long": {
+    "n": 193,
+    "avg_r": 0.08
+   },
+   "short": {
+    "n": 125,
+    "avg_r": 0.381
+   },
+   "exits": {
+    "STOP": 309,
+    "TIME": 9
+   }
+  }
+ },
+ "v3_4h_trail": {
+  "all": {
+   "trades": 259,
+   "trades_per_week": 1.88,
+   "win_rate": 0.452,
+   "avg_r": 0.16,
+   "avg_r_ci95": [
+    -0.024,
+    0.362
+   ],
+   "median_r": -0.941,
+   "profit_factor": 1.29,
+   "net_pnl": 21.992,
+   "gross_pnl": 28.26,
+   "costs": 6.268,
+   "costs_per_abs_gross": 0.036,
+   "long": {
+    "n": 150,
+    "avg_r": 0.134
+   },
+   "short": {
+    "n": 109,
+    "avg_r": 0.196
+   },
+   "exits": {
+    "STOP": 242,
+    "TIME": 17
+   }
+  },
+  "final_equity": 121.992,
+  "max_drawdown": 0.0885,
+  "max_concurrent_positions": 1,
+  "signals_generated": 3339,
+  "rejects": {
+   "COST_GATE": 5
+  },
+  "lock_triggers_counted_not_enforced": {
+   "daily_2pct": 0,
+   "drawdown_8pct": 1,
+   "loss_streak_3": 19
+  },
+  "in_sample": {
+   "trades": 193,
+   "trades_per_week": 1.87,
+   "win_rate": 0.477,
+   "avg_r": 0.211,
+   "avg_r_ci95": [
+    -0.023,
+    0.447
+   ],
+   "median_r": -0.927,
+   "profit_factor": 1.42,
+   "net_pnl": 21.847,
+   "gross_pnl": 25.614,
+   "costs": 3.767,
+   "costs_per_abs_gross": 0.03,
+   "long": {
+    "n": 114,
+    "avg_r": 0.228
+   },
+   "short": {
+    "n": 79,
+    "avg_r": 0.188
+   },
+   "exits": {
+    "STOP": 182,
+    "TIME": 11
+   }
+  },
+  "out_of_sample": {
+   "trades": 66,
+   "trades_per_week": 1.92,
+   "win_rate": 0.379,
+   "avg_r": 0.009,
+   "avg_r_ci95": [
+    -0.335,
+    0.407
+   ],
+   "median_r": -0.945,
+   "profit_factor": 1.01,
+   "net_pnl": 0.145,
+   "gross_pnl": 2.646,
+   "costs": 2.502,
+   "costs_per_abs_gross": 0.054,
+   "long": {
+    "n": 36,
+    "avg_r": -0.164
+   },
+   "short": {
+    "n": 30,
+    "avg_r": 0.217
+   },
+   "exits": {
+    "STOP": 60,
+    "TIME": 6
+   }
+  },
+  "by_symbol": {
+   "AAVEUSDT": [
+    13,
+    -0.173
+   ],
+   "ADAUSDT": [
+    12,
+    1.411
+   ],
+   "APTUSDT": [
+    6,
+    -0.382
+   ],
+   "ARBUSDT": [
+    3,
+    -0.982
+   ],
+   "AVAXUSDT": [
+    11,
+    -0.335
+   ],
+   "AXSUSDT": [
+    2,
+    -0.775
+   ],
+   "BCHUSDT": [
+    11,
+    -0.443
+   ],
+   "BNBUSDT": [
+    13,
+    -0.145
+   ],
+   "BTCUSDT": [
+    19,
+    -0.33
+   ],
+   "DOGEUSDT": [
+    5,
+    -0.257
+   ],
+   "DOTUSDT": [
+    3,
+    1.54
+   ],
+   "ETCUSDT": [
+    2,
+    0.572
+   ],
+   "ETHUSDT": [
+    16,
+    0.458
+   ],
+   "FETUSDT": [
+    5,
+    0.141
+   ],
+   "FILUSDT": [
+    5,
+    0.788
+   ],
+   "GALAUSDT": [
+    3,
+    -0.668
+   ],
+   "ICPUSDT": [
+    2,
+    -0.981
+   ],
+   "IMXUSDT": [
+    1,
+    -0.981
+   ],
+   "INJUSDT": [
+    1,
+    -0.978
+   ],
+   "LINKUSDT": [
+    12,
+    0.014
+   ],
+   "LTCUSDT": [
+    7,
+    -0.968
+   ],
+   "MATICUSDT": [
+    6,
+    0.742
+   ],
+   "NEARUSDT": [
+    13,
+    0.19
+   ],
+   "OPUSDT": [
+    6,
+    -0.301
+   ],
+   "ORDIUSDT": [
+    7,
+    -0.028
+   ],
+   "RUNEUSDT": [
+    1,
+    -0.996
+   ],
+   "SANDUSDT": [
+    1,
+    3.344
+   ],
+   "SEIUSDT": [
+    3,
+    -0.205
+   ],
+   "SOLUSDT": [
+    18,
+    0.038
+   ],
+   "STXUSDT": [
+    1,
+    -0.986
+   ],
+   "SUIUSDT": [
+    7,
+    0.794
+   ],
+   "TIAUSDT": [
+    4,
+    0.04
+   ],
+   "TRXUSDT": [
+    5,
+    0.441
+   ],
+   "UNIUSDT": [
+    5,
+    2.594
+   ],
+   "WIFUSDT": [
+    6,
+    0.671
+   ],
+   "WLDUSDT": [
+    13,
+    0.679
+   ],
+   "XRPUSDT": [
+    11,
+    0.566
+   ]
+  },
+  "by_quarter": {
+   "2024Q1": [
+    23,
+    0.027
+   ],
+   "2024Q2": [
+    27,
+    -0.096
+   ],
+   "2024Q3": [
+    25,
+    0.876
+   ],
+   "2024Q4": [
+    23,
+    0.162
+   ],
+   "2025Q1": [
+    23,
+    -0.094
+   ],
+   "2025Q2": [
+    30,
+    0.099
+   ],
+   "2025Q3": [
+    23,
+    0.499
+   ],
+   "2025Q4": [
+    19,
+    0.255
+   ],
+   "2026Q1": [
+    20,
+    0.03
+   ],
+   "2026Q2": [
+    27,
+    -0.187
+   ],
+   "2026Q3": [
+    19,
+    0.267
+   ]
+  },
+  "avg_r_without_best_symbol": [
+   "ADAUSDT",
+   0.099
+  ],
+  "stress_1_5": {
+   "trades": 254,
+   "trades_per_week": 1.85,
+   "win_rate": 0.449,
+   "avg_r": 0.138,
+   "avg_r_ci95": [
+    -0.056,
+    0.34
+   ],
+   "median_r": -0.947,
+   "profit_factor": 1.25,
+   "net_pnl": 18.252,
+   "gross_pnl": 25.848,
+   "costs": 7.596,
+   "costs_per_abs_gross": 0.046,
+   "long": {
+    "n": 145,
+    "avg_r": 0.097
+   },
+   "short": {
+    "n": 109,
+    "avg_r": 0.193
+   },
+   "exits": {
+    "STOP": 238,
+    "TIME": 16
+   }
+  }
+ }
+}
