@@ -39,6 +39,7 @@ class DemoClient:
         ('GET','/fapi/v1/positionSide/dual'), ('GET','/fapi/v1/symbolConfig'),
         ('GET','/fapi/v3/positionRisk'), ('GET','/fapi/v1/openOrders'),
         ('GET','/fapi/v1/openAlgoOrders'),
+        ('GET','/fapi/v3/balance'), ('GET','/fapi/v1/leverageBracket'),
         ('POST','/fapi/v1/marginType'), ('POST','/fapi/v1/leverage'),
         ('GET','/fapi/v1/userTrades'), ('GET','/fapi/v1/income'),
         ('GET',ORDER), ('POST',ORDER), ('DELETE',ORDER),
@@ -51,6 +52,8 @@ class DemoClient:
         self.opener = build_opener(NoRedirect())
 
     def call(self, method, path, **params):
+        if BASE != 'https://demo-fapi.binance.com':
+            raise ValueError('Testnet host invariant violated')
         if (method,path) not in self.ALLOWED:
             raise ValueError('Endpoint refused')
         if any(k in params for k in ('signature','timestamp','recvWindow')):
@@ -152,6 +155,15 @@ class Coordinator:
         p['account_identity']=self.api.identity
         if p.get('environment')!='testnet' or p.get('side') not in ('BUY','SELL'):
             raise ValueError('Testnet plan required')
+        if 'risk_model' in p:
+            from .order_risk import VERSION, MAX_LEVERAGE
+            if (p['risk_model'] != VERSION or type(p.get('leverage')) is not int
+                    or not 1 <= p['leverage'] <= MAX_LEVERAGE):
+                raise ValueError('Invalid risk model/leverage')
+            if p.get('purpose') not in ('STRATEGY_PILOT','MULTI_MARKET_TESTNET'):
+                raise ValueError('Dynamic leverage requires strategy pilot')
+        elif 'leverage' in p:
+            raise ValueError('Leverage requires risk model')
         for k in ('quantity','reference','stop','target'):
             p[k]=str(dec(p[k]))
             if dec(p[k])<=0: raise ValueError('Positive plan values required')
@@ -163,7 +175,12 @@ class Coordinator:
         # Fee/slippage/funding allowance uses existing conservative defaults.
         q,e,s=map(dec,(p['quantity'],p['reference'],p['stop']))
         modeled=q*(abs(e-s)+(e+s)*dec('0.0008')+e*dec('0.001'))
-        if modeled>dec('0.5'):
+        cap=dec('0.5')
+        if p.get('stop_model')=='atr-structure-v1' and p.get('purpose')=='MULTI_MARKET_TESTNET':
+            cap=dec(p.get('risk_cap','0'))
+            if not 0<cap<=dec('2'): raise ValueError('Invalid adaptive Testnet risk cap')
+            if q*e>25: raise ValueError('Adaptive notional cap exceeded')
+        if modeled>cap:
             raise ValueError('Modeled risk exceeds 0.50 USDT')
         old=self.j.db.execute('SELECT data FROM experiment WHERE id=1').fetchone()
         if old:
@@ -199,6 +216,10 @@ class Coordinator:
         self.j.put(name,{'phase':'ACK','response':response})
 
     def preflight(self,p):
+        if p.get('purpose')=='MULTI_MARKET_TESTNET':
+            now=int(time.time()*1000)
+            if not 0<=now-p.get('signal_close_ms',0)<=120000:
+                raise ValueError('Signal expired before entry')
         if not 0<=int(time.time()*1000)-self.j.get('prepared')['at_ms']<=60000:
             raise ValueError('Prepared plan expired; never enter retrospectively')
         current=dec(self.api.call('GET','/fapi/v1/ticker/price',symbol=p['symbol'])['price'])
@@ -208,12 +229,20 @@ class Coordinator:
             raise ValueError('One-way mode required')
         rows=self.api.call('GET','/fapi/v1/symbolConfig',symbol=p['symbol'])
         row=next(x for x in rows if x['symbol']==p['symbol'])
-        if row['marginType'].upper()!='ISOLATED' or int(row['leverage'])!=2:
+        if row['marginType'].upper()!='ISOLATED' or ('risk_model' not in p and int(row['leverage'])!=2):
             raise ValueError('Isolated margin and 2x required')
-        if any(dec(x['positionAmt'])!=0 for x in self.api.call('GET','/fapi/v3/positionRisk')):
-            raise ValueError('Dedicated account must be flat')
-        if self.api.call('GET','/fapi/v1/openOrders') or self.api.call('GET','/fapi/v1/openAlgoOrders'):
-            raise ValueError('Dedicated account must have no open orders')
+        positions=[x for x in self.api.call('GET','/fapi/v3/positionRisk') if dec(x['positionAmt'])!=0]
+        regular=self.api.call('GET','/fapi/v1/openOrders')
+        algos=self.api.call('GET','/fapi/v1/openAlgoOrders')
+        if p.get('portfolio_slots')==3 and p.get('purpose')=='MULTI_MARKET_TESTNET':
+            expected=set(p.get('portfolio_symbols',[]))
+            actual={x['symbol'] for x in positions}
+            if (actual!=expected or p['symbol'] in actual or len(actual)>=3
+                    or regular or len(algos)>2*len(actual)
+                    or any(not str(x.get('clientAlgoId','')).startswith('gpts-') for x in algos)):
+                raise ValueError('Multi-slot account ownership mismatch')
+        elif positions or regular or algos:
+            raise ValueError('Dedicated account must be flat and have no open orders')
         from .core import Rules
         rows=self.api.call('GET','/fapi/v1/exchangeInfo')['symbols']
         row=next(x for x in rows if x['symbol']==p['symbol'])
@@ -227,6 +256,27 @@ class Coordinator:
             price=dec(price)
             if price%r.tick or not r.min_price<=price<=r.max_price:
                 raise ValueError('Price filter failure')
+        if 'risk_model' in p:
+            from .order_risk import validate_execution
+            evidence=validate_execution(self.api,p,current,r)
+            self.j.put('risk_preflight',{'at_ms':int(time.time()*1000),'assessment':evidence})
+            settings=self.api.call('GET','/fapi/v1/symbolConfig',symbol=p['symbol'])
+            config=next(x for x in settings if x['symbol']==p['symbol'])
+            if int(config['leverage'])!=p['leverage']:
+                # Once only: after timeout/restart, GET must prove the setting.
+                self.once('leverage','/fapi/v1/leverage',
+                    dict(symbol=p['symbol'],leverage=p['leverage']))
+            settings=self.api.call('GET','/fapi/v1/symbolConfig',symbol=p['symbol'])
+            config=next(x for x in settings if x['symbol']==p['symbol'])
+            if config['marginType'].upper()!='ISOLATED' or int(config['leverage'])!=p['leverage']:
+                raise ValueError('Dynamic leverage not confirmed')
+            latest=dec(self.api.call('GET','/fapi/v1/ticker/price',symbol=p['symbol'])['price'])
+            if abs(latest/dec(p['reference'])-1)>dec('.005'):
+                raise ValueError('Entry drift during risk checks')
+            if not 0<=int(time.time()*1000)-self.j.get('prepared')['at_ms']<=60000:
+                raise ValueError('Prepared plan expired during risk checks')
+            if p.get('purpose')=='MULTI_MARKET_TESTNET' and not 0<=int(time.time()*1000)-p['signal_close_ms']<=120000:
+                raise ValueError('Signal expired during risk checks')
 
     def advance(self):
         p=self.plan(); symbol=p['symbol']; opposite='SELL' if p['side']=='BUY' else 'BUY'
