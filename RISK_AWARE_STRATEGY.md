@@ -1,5 +1,11 @@
 # Risk-aware multi-agent candidate v1
 
+> 2026-09-18 update (see STRATEGY_V2.md): historical replay of this exact selection
+> logic over 20 symbols, Jan 2024-Aug 2026, gives -0.057R per trade (CI -0.075..-0.038,
+> 4,769 trades). Performance-based risk promotion in `adaptive_risk.risk_allowance` is
+> now disabled and slots are limited to one position per direction.
+
+
 Status: integrated with the deployed multi-market/adaptive-stop source snapshot
 and tested. Enabled explicitly with `--multi-agent --multi-market --risk-aware`.
 This is a research candidate, not evidence of improved profitability.

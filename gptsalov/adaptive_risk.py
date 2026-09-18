@@ -3,7 +3,7 @@ from dataclasses import replace
 from .core import dec
 
 VERSION='atr-structure-v1'
-MAX_RISK=dec('2')
+MAX_RISK=dec('.25')  # escalation disabled; see risk_allowance
 
 def adaptive_stop(signal,bars):
     if signal is None or len(bars)<15: raise ValueError('STOP_INPUT')
@@ -23,28 +23,31 @@ def adaptive_stop(signal,bars):
         'distance':str(distance),'distance_pct':str(distance/ref*100)}
 
 def risk_allowance(state):
-    """No promotion from win rate alone; compare two disjoint 30-trade windows."""
+    """Fixed 0.25 USDT ceiling. Performance-based promotion is DISABLED.
+
+    The former 30-trade win-rate gate passed by chance 4-8% of the time on a
+    strategy with negative expectancy (research/backtest-2026-09-18), and was
+    re-checked after every trade, so escalation to 2 USDT was near-certain
+    without any real edge. Re-enable only for a strategy that has passed the
+    out-of-sample criteria in STRATEGY_V2.md. The report keeps the sample
+    statistics for review; they no longer change the cap.
+    """
     samples=state.get('adaptive_results',[])
-    cap=dec('.25');reason='NEED_60_CLOSED_TRADES'
+    cap=dec('.25');reason='PROMOTION_DISABLED_PENDING_VALIDATED_EDGE'
     report={'closed_samples':len(samples),'version':VERSION}
     if len(samples)>=60:
-        old=samples[-60:-30];new=samples[-30:]
-        previous=sum(dec(x['net'])>0 for x in old)/30
+        new=samples[-30:]
         wins=sum(dec(x['net'])>0 for x in new)/30
         gains=sum((max(dec(x['net']),dec(0)) for x in new),dec(0))
         losses=sum((max(-dec(x['net']),dec(0)) for x in new),dec(0))
         expectancy=sum((dec(x['net'])/dec(x['risk']) for x in new),dec(0))/30
-        eligible=wins>=previous+.10 and wins>=.5 and expectancy>0 and gains>losses*dec('1.3')
-        report.update(win_rate=wins,previous_win_rate=previous,mean_r=str(expectancy),
+        report.update(win_rate=wins,mean_r=str(expectancy),
             profit_factor=str(gains/losses) if losses else None)
-        reason='PERFORMANCE_GATE_NOT_MET'
-        if eligible:
-            cap=dec('.5') if len(samples)<90 else dec('1') if len(samples)<120 else MAX_RISK
-            reason='PERFORMANCE_GATE_PASSED'
     equity=dec(state['equity'])
     # Existing account-level loss limits take priority over the ceiling.
     daily=max(dec(0),equity-dec(state['day_start'])*dec('.98'))
     drawdown=max(dec(0),equity-dec(state['high_water'])*dec('.92'))
-    allowed=min(cap,MAX_RISK,equity*dec('.04'),daily,drawdown)
-    report.update(reason=reason,performance_cap=str(cap),effective_cap=str(allowed),max_cap=str(MAX_RISK))
+    # 0.5% of equity per trade: the same rule core.Config enforces for paper.
+    allowed=min(cap,equity*dec('.005'),daily,drawdown)
+    report.update(reason=reason,performance_cap=str(cap),effective_cap=str(allowed),max_cap=str(cap))
     return allowed,report

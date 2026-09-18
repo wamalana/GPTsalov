@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov 4h trend-following forward paper ledger (research only)
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=/home/wamalana/GPTsalov/trend4h-current
+ExecStart=/usr/bin/python3 -u -m gptsalov.trend4h run --db /home/wamalana/GPTsalov/data/trend4h/ledger.db
+Restart=no
+MemoryMax=256M
+CPUQuota=40%
+UMask=0077
+NoNewPrivileges=yes
+[Install]
+WantedBy=default.target

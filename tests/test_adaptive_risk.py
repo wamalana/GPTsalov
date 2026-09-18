@@ -25,12 +25,15 @@ class AdaptiveTests(unittest.TestCase):
   old=[dict(net='1' if i<10 else '-1',risk='1') for i in range(30)]
   new=[dict(net='.1' if i<20 else '-2',risk='1') for i in range(30)]
   cap,_=risk_allowance(self.state(old+new));self.assertEqual(cap,dec('.25'))
- def test_profitable_improvement_and_daily_budget(self):
+ def test_improvement_no_longer_promotes_and_daily_budget(self):
   old=[dict(net='1' if i<10 else '-1',risk='1') for i in range(30)]
   new=[dict(net='2' if i<20 else '-1',risk='1') for i in range(30)]
-  s=self.state(old+new);cap,_=risk_allowance(s);self.assertEqual(cap,dec('.5'))
+  s=self.state(old+new);cap,r=risk_allowance(s);self.assertEqual(cap,dec('.25'))
+  self.assertEqual(r['reason'],'PROMOTION_DISABLED_PENDING_VALIDATED_EDGE')
   s['equity']='98.1';cap,_=risk_allowance(s);self.assertEqual(cap,dec('.1'))
   s['equity']='97';cap,_=risk_allowance(s);self.assertEqual(cap,0)
+  s=self.state([]);s['equity']='40';s['day_start']='40';s['high_water']='40'
+  cap,_=risk_allowance(s);self.assertEqual(cap,dec('.2'))  # 0.5% of equity
  def test_sizing_cap_and_notional_all_fills(self):
   cfg=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
   rule=Rules('XUSDT',dec('.001'),dec('.001'),dec('.001'),dec(100000),dec(1),dec(1000000),dec('.001'),dec(100000))

@@ -289,6 +289,46 @@ def _rolling_qv(s: Series, bars):
     return out
 
 
+def manage_bar(p: dict, o, h, l, c, eng: Engine):
+    """Apply one closed bar to an open position dict. Returns (reason, ref) on exit, else None.
+
+    Shared by the historical replay and the live 4h paper ledger so both use
+    identical stop-first, time-exit, breakeven and trailing rules.
+    """
+    side = p["side"]
+    p["bars"] += 1
+    stop_hit = l <= p["stop"] if side == 1 else h >= p["stop"]
+    tgt = p["target"]
+    target_hit = tgt is not None and (h >= tgt if side == 1 else l <= tgt)
+    if stop_hit:
+        return "STOP", (min(p["stop"], o) if side == 1 else max(p["stop"], o))
+    if target_hit:
+        return "TARGET", tgt
+    if p["bars"] >= eng.max_hold_bars:
+        return "TIME", c
+    if eng.exit_mode == "trail":
+        p["best"] = max(p["best"], h) if side == 1 else min(p["best"], l)
+        if side*(c-p["entry"]) >= eng.breakeven_r*p["dist"]:
+            be = p["entry"]*(1+side*(2*eng.fee+2*eng.slip+eng.reserve))
+            p["stop"] = max(p["stop"], be) if side == 1 else min(p["stop"], be)
+        trail = p["best"]-side*eng.trail_atr*p["atr"]
+        if side*(trail-p["entry"]) > 0:  # only trail once in profit
+            p["stop"] = max(p["stop"], trail) if side == 1 else min(p["stop"], trail)
+    p["mark"] = c
+    return None
+
+
+def close_math(p: dict, ref, reason, t_close, eng: Engine, funding_paid=None) -> Trade:
+    """Modeled exit fill, fees and net PnL. funding_paid=None uses the fixed reserve."""
+    fill = ref*(1-p["side"]*eng.slip)
+    gross = p["side"]*(fill-p["entry"])*p["qty"]
+    exit_fee = fill*p["qty"]*eng.fee
+    fund = p["reserve"] if funding_paid is None else funding_paid
+    costs = p["entry_fee"]+exit_fee+fund
+    return Trade(p["sym"], p["side"], p["open_ms"], t_close, reason, p["entry"], fill,
+                 p["qty"], gross, costs, gross-costs, p["risk"], p["bars"])
+
+
 def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None) -> Result:
     """data: {sym: Series}; signals: {sym: {bar_index: Sig}} on the same timeframe.
 
@@ -316,19 +356,14 @@ def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None
 
     def close(p, ref, reason, t_close):
         nonlocal balance, streak, high
-        fill = ref*(1-p["side"]*eng.slip)
-        gross = p["side"]*(fill-p["entry"])*p["qty"]
-        exit_fee = fill*p["qty"]*eng.fee
-        fund = p["reserve"]
+        fund = None
         if funding.get(p["sym"]):
             fund = sum(rate*p["side"]*p["entry"]*p["qty"] for ft, rate in funding[p["sym"]]
                        if p["open_ms"] < ft <= t_close)
-        costs = p["entry_fee"]+exit_fee+fund
-        net = gross-costs
-        balance += net
-        res.trades.append(Trade(p["sym"], p["side"], p["open_ms"], t_close, reason, p["entry"], fill,
-                                p["qty"], gross, costs, net, p["risk"], p["bars"]))
-        streak = streak+1 if net < 0 else 0
+        trade = close_math(p, ref, reason, t_close, eng, fund)
+        balance += trade.net
+        res.trades.append(trade)
+        streak = streak+1 if trade.net < 0 else 0
         if streak == 3:
             res.lock_triggers["loss_streak_3"] += 1
         high = max(high, balance)
@@ -355,27 +390,9 @@ def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None
             i = idx[p["sym"]].get(t)
             if i is None:
                 continue
-            side = p["side"]
-            p["bars"] += 1
-            o, h, l, c = s.o[i], s.h[i], s.l[i], s.c[i]
-            t_close = t+eng.bar_ms-1
-            stop_hit = l <= p["stop"] if side == 1 else h >= p["stop"]
-            tgt = p["target"]
-            target_hit = tgt is not None and (h >= tgt if side == 1 else l <= tgt)
-            if stop_hit:
-                close(p, min(p["stop"], o) if side == 1 else max(p["stop"], o), "STOP", t_close)
-            elif target_hit:
-                close(p, tgt, "TARGET", t_close)
-            elif p["bars"] >= eng.max_hold_bars:
-                close(p, c, "TIME", t_close)
-            elif eng.exit_mode == "trail":
-                p["best"] = max(p["best"], h) if side == 1 else min(p["best"], l)
-                if side*(c-p["entry"]) >= eng.breakeven_r*p["dist"]:
-                    be = p["entry"]*(1+side*(2*eng.fee+2*eng.slip+eng.reserve))
-                    p["stop"] = max(p["stop"], be) if side == 1 else min(p["stop"], be)
-                trail = p["best"]-side*eng.trail_atr*p["atr"]
-                if side*(trail-p["entry"]) > 0:  # only trail once in profit
-                    p["stop"] = max(p["stop"], trail) if side == 1 else min(p["stop"], trail)
+            hit = manage_bar(p, s.o[i], s.h[i], s.l[i], s.c[i], eng)
+            if hit:
+                close(p, hit[1], hit[0], t+eng.bar_ms-1)
         if balance <= day_start*0.98 and not daily_hit:
             daily_hit = True
             res.lock_triggers["daily_2pct"] += 1

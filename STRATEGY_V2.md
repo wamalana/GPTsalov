@@ -81,10 +81,33 @@ entry envelope ±0.5%, net RR ≥ 1) และใช้ 3 slots ที่แบ�
    PF > 1.15, ต้นทุน×1.5 ยังบวก, ตัดเหรียญที่ดีสุดยังไม่ติดลบ, forward paper ไม่ต่างจาก backtest เกินช่วง CI
 5. ถ้าจะใช้หลายตำแหน่ง ให้จำกัด **1 ตำแหน่งต่อทิศทาง** หรือเพิ่ม BTC beta cap แทนการเปิด alt ทิศเดียวกัน 3 ตัว
 
+## 3b. โค้ดที่แก้แล้วใน branch นี้ (commit หลังผลทดสอบ)
+
+| ที่ | การเปลี่ยนแปลง | ผล |
+|---|---|---|
+| `gptsalov/adaptive_risk.py` | `risk_allowance` ไม่เลื่อนเพดานตาม win rate อีกต่อไป: คงที่ 0.25 USDT และไม่เกิน 0.5% ของ equity (กฎเดียวกับ `core.Config`) สถิติ 30 เทรดยังรายงานแต่ไม่มีผลต่อเพดาน | ปิดช่องเพิ่มความเสี่ยงเพราะโชค (ข้อ 2.2) |
+| `gptsalov/testnet_pilot.py` | `multi_candidate` รับ `busy_sides`; slot บันทึกทิศ (`side`) และปฏิเสธผู้สมัครทิศเดียวกับตำแหน่งที่เปิดอยู่ (`SAME_DIRECTION_OPEN`) — สูงสุด 1 long + 1 short | ไม่เปิด alt ทิศเดียวกัน 3 ตัว (ข้อ 2.3) |
+| `gptsalov/trend4h.py` + `deploy/gptsalov-trend4h.service` | forward paper ledger ของ `v3_4h_trail` ใช้ฟังก์ชันจัดการสถานะชุดเดียวกับ backtest (`manage_bar`/`close_math`/`_open`) จึงเทียบผล forward กับ backtest ได้ตรง ๆ; public GET เท่านั้น, single-writer SQLite, identity ล็อกกับ variant | เริ่มเก็บหลักฐาน forward ของตัวที่มีแนวโน้ม (ข้อ 3.3) |
+| `tests/test_trend4h.py` | ทดสอบว่า ledger สด ๆ ให้เทรดตรงกับ `backtest.simulate` ทุกไม้ (symbol, เวลาเข้า/ออก, เหตุผล, net PnL) บนข้อมูลเดียวกัน + poll ซ้ำในแท่งเดิมไม่ทำอะไร + identity/lock | |
+
+ledger ของ slot เก่าที่ไม่มี `side` ถือว่าไม่รู้ทิศ (ไม่บล็อก) — ไม่มี migration; `POLICY` ไม่เปลี่ยน, hash เดิม
+ยังไม่ได้แก้ ranking `|close−EMA|/ATR` (ข้อ 2.4) เพราะสัญญาณ 15m ไม่มี edge อยู่แล้ว การจัดอันดับใหม่ไม่เปลี่ยนข้อสรุป
+
+ติดตั้ง ledger 4h บน VPS (ไม่แตะ service เดิม):
+```bash
+# release ใหม่ที่มี branch นี้ → ~/GPTsalov/trend4h-current
+mkdir -p ~/GPTsalov/data/trend4h
+cp deploy/gptsalov-trend4h.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+systemctl --user enable --now gptsalov-trend4h.service
+python3 -m gptsalov.trend4h status --db ~/GPTsalov/data/trend4h/ledger.db
+```
+คาดหวัง ~2 เทรด/สัปดาห์ (จาก backtest) ต้องรอ ≥ 100 เทรด (~12 เดือน) ก่อนเทียบกับช่วง CI ของ backtest
+Funding ใน ledger ใช้ reserve 10 bps คงที่ (public klines endpoint ไม่มี funding) ส่วน backtest ใช้ funding จริง — ต่างกันเล็กน้อยในทิศอนุรักษ์นิยม
+
 ## 4. ทำซ้ำได้
 
 ```bash
-python3 -m unittest discover -s tests -q          # 180 tests
+python3 -m unittest discover -s tests -q          # 183 tests
 python3 -m gptsalov.backtest download --dir data/hist --start 2024-01 --end 2026-08   # ~200 MB
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist out.json               # ทุก variant (~30 นาที)
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist v3.json v3_4h_trail    # เฉพาะตัวที่ต้องการ

@@ -302,7 +302,7 @@ def apply_order_risk(api,book,signal,reference,plan,rule,atr):
     return plan,details
 
 
-def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0)):
+def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy_sides=()):
     from .market_scanner import read as read_scan, classify
     t=now_ms();stamp=t//BAR_MS*BAR_MS-1
     s=book.s
@@ -333,11 +333,15 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0)):
     tickers={r['symbol']:r for r in public.get('/fapi/v1/ticker/24hr')}
     books={r['symbol']:r for r in public.get('/fapi/v1/ticker/bookTicker')}
     from .multiagent_gate import evaluate
-    selected=[];excluded=set(exclude)
+    selected=[];excluded=set(exclude);sides=set(busy_sides)
     for row in candidates:
         symbol=row['symbol'];t=now_ms()
         if symbol in excluded:
             selection['rejected'][symbol]='ALREADY_ACTIVE';continue
+        # One position per direction: correlated alts in the same direction are
+        # one bet repeated, not diversification.
+        if row.get('direction') in sides:
+            selection['rejected'][symbol]='SAME_DIRECTION_OPEN';continue
         if not 0<=t-stamp<=CFG.max_data_age_ms:
             selection['status']='ENTRY_WINDOW_EXPIRED';break
         if symbol not in demo:
@@ -385,7 +389,7 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0)):
                     quantity=str(plan.qty),reference=str(reference),stop=str(plan.stop),target=str(plan.target),
                     purpose='MULTI_MARKET_TESTNET',sizing_version='fill-envelope-v2',stop_model=VERSION,risk_cap=str(cap),modeled_risk=str(plan.risk),stop_analysis=stop_evidence,signal_id=signal.key,signal_observed_ms=now_ms(),
                     signal_close_ms=stamp,**risk_details)
-        selected.append(chosen);excluded.add(symbol)
+        selected.append(chosen);excluded.add(symbol);sides.add('LONG' if signal.side==1 else 'SHORT')
         if len(selected)>=limit:break
     if selected:
         s['last_signal_ms']=stamp
@@ -507,7 +511,8 @@ def tick(book,api,public):
     if any(x.get('clientAlgoId') not in expected_algo for x in open_algos):
         s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
     reserved=sum((dec(x.get('modeled_risk','0')) for x in slots),dec(0))
-    plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved)
+    busy_sides={x['side'] for x in slots if x.get('side')}
+    plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
     for p in plans:
         if now_ms()-p['signal_observed_ms']>60000:
             book.save('STALE_PLAN_SKIPPED');break
@@ -519,7 +524,8 @@ def tick(book,api,public):
         trade_id=s.get('next_trade_id',s['closed_trades']+len(active_slots(s))+1)
         filename='trade-'+str(trade_id)+'.db';s['next_trade_id']=trade_id+1
         # Persist ownership before any order; partial init on crash locks for review.
-        slot={'file':filename,'started_ms':now_ms(),'symbol':p['symbol'],'modeled_risk':p['modeled_risk'],'phase':'PREPARED'}
+        slot={'file':filename,'started_ms':now_ms(),'symbol':p['symbol'],'modeled_risk':p['modeled_risk'],'phase':'PREPARED',
+              'side':'LONG' if p['side']=='BUY' else 'SHORT'}
         s['active']=active_slots(s)+[slot]
         book.save({'event':'SIGNAL_SELECTED','plan':p})
         with Journal(book.root/filename) as j:
