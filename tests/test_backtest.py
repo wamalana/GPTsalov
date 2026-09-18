@@ -87,6 +87,18 @@ class Execution(unittest.TestCase):
         self.assertEqual(r.rejects, {"COST_GATE": 1})
 
 
+class MultiSlot(unittest.TestCase):
+    def test_three_slots_share_one_risk_budget(self):
+        rows = [(100, 100, 100, 100, 1)]+[(100, 100.5, 99.5, 100, 1)]*5
+        data = {f"S{k}USDT": series(rows) for k in range(4)}
+        sig = Sig(1, 100.0, 1.0, None, 1.0, 1.0, stop=98.0, target=104.0)
+        eng = Engine(min_quote_volume_24h=0, max_positions=3, max_hold_bars=3)
+        r = simulate(data, {s: {0: sig} for s in data}, eng)
+        self.assertEqual(r.max_concurrent, 3)
+        self.assertEqual(len(r.trades), 3)
+        self.assertLessEqual(sum(t.risk for t in r.trades), 100*0.005+1e-9)
+
+
 class RandomWalkSanity(unittest.TestCase):
     def test_no_edge_data_loses_roughly_its_costs(self):
         data = {f"S{k}USDT": synthetic(n=5000, seed=40+k) for k in range(4)}

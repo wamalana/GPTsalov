@@ -126,13 +126,13 @@ def synthetic(n=6000, seed=1, drift=0.0, vol=0.004, start=1_700_000_000_000//BAR
 
 # ----------------------------------------------------------------- signals
 
-def baseline_signals(sym, s: Series) -> dict:
-    """EXACT production core.strategy on the same 199 closed bars the live scan sees.
+def _candidates(sym, s: Series):
+    """Yield (i, window, signal) for every bar where production core.strategy fires.
 
-    A cheap float pre-filter (breakout + volume, both necessary conditions)
-    avoids building Decimal windows on bars that cannot signal.
+    Uses the same 199 closed bars the live scan sees. A cheap float pre-filter
+    (breakout + volume, both necessary conditions) skips impossible bars.
     """
-    out, cache = {}, {}
+    cache = {}
 
     def candle(k):
         if k not in cache:
@@ -148,11 +148,65 @@ def baseline_signals(sym, s: Series) -> dict:
             continue
         if s.t[i]-s.t[i-198] != 198*BAR_MS:  # live system halts on gaps
             continue
-        sig = strategy(sym, [candle(k) for k in range(i-198, i+1)])
+        window = [candle(k) for k in range(i-198, i+1)]
+        sig = strategy(sym, window)
         if sig:
-            ref, stop, target = float(sig.reference), float(sig.stop), float(sig.target)
-            out[i] = Sig(sig.side, ref, abs(ref-stop), None, abs(ref-stop)/1.5,
-                         float(sig.score), stop=stop, target=target)
+            yield i, window, sig
+
+
+def baseline_signals(sym, s: Series) -> dict:
+    """EXACT production v1 signal (paper engine)."""
+    out = {}
+    for i, _, sig in _candidates(sym, s):
+        ref, stop, target = float(sig.reference), float(sig.stop), float(sig.target)
+        out[i] = Sig(sig.side, ref, abs(ref-stop), None, abs(ref-stop)/1.5,
+                     float(sig.score), stop=stop, target=target)
+    return out
+
+
+def _net_rr_v1(side, ref, stop, target, fee=0.0005, slip=0.0003, reserve=0.001):
+    """Same cost model as research.reward_risk / core.size (paper config)."""
+    entry = ref*(1+side*slip)
+    stop_fill, tgt_fill = stop*(1-side*slip), target*(1-side*slip)
+    risk = abs(entry-stop_fill)+fee*(entry+stop_fill)+entry*reserve
+    reward = side*(tgt_fill-entry)-fee*(entry+tgt_fill)-entry*reserve
+    return reward/risk
+
+
+def testnet_signals(sym, s: Series, risk_aware: bool) -> dict:
+    """Current Testnet pilot selection logic (main @ e98d9c6), using its own functions:
+
+    v1 signal -> [risk-aware: order_risk.strategy_review veto] -> adaptive_risk.adaptive_stop
+    -> +/-0.5% entry envelope must not cross stop/target (execution_sizing)
+    -> net RR >= 1 (paper costs) -> [risk-aware: order_risk.costs net RR >= 1.2].
+    Entry is modeled at the next bar open; the live pilot enters at the ticker
+    price right after the close, so fills differ slightly.
+    """
+    from .adaptive_risk import adaptive_stop
+    from .order_risk import MIN_RR, costs, strategy_review
+    out = {}
+    for i, window, sig in _candidates(sym, s):
+        if risk_aware and not strategy_review(window, sig)["allow"]:
+            continue
+        try:
+            sig, _ = adaptive_stop(sig, window)
+        except ValueError:
+            continue
+        ref, stop, target, side = float(sig.reference), float(sig.stop), float(sig.target), sig.side
+        low, high_ = ref*0.995, ref*1.005
+        if (side == 1 and (low <= stop or high_ >= target)) or (side == -1 and (high_ >= stop or low <= target)):
+            continue
+        if _net_rr_v1(side, ref, stop, target) < 1:
+            continue
+        if risk_aware:
+            try:
+                _, _, loss, reward, _ = costs(sig.reference, sig.stop, sig.target, side)
+            except ValueError:
+                continue
+            if reward/loss < MIN_RR:
+                continue
+        out[i] = Sig(side, ref, abs(ref-stop), None, abs(ref-stop)/2, float(sig.score),
+                     stop=stop, target=target)
     return out
 
 
@@ -180,6 +234,7 @@ class Engine:
     shortlist: int = 20
     min_quote_volume_24h: float = 10_000_000
     long_only: bool = False
+    max_positions: int = 1
 
     @property
     def fee(self):
@@ -235,7 +290,12 @@ def _rolling_qv(s: Series, bars):
 
 
 def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None) -> Result:
-    """data: {sym: Series}; signals: {sym: {bar_index: Sig}} on the same timeframe."""
+    """data: {sym: Series}; signals: {sym: {bar_index: Sig}} on the same timeframe.
+
+    max_positions > 1 mirrors the Testnet multi-slot pilot: one position per
+    symbol, and the total open modeled risk never exceeds balance*risk_fraction
+    (the remaining budget is split across the free slots, like multi_candidate).
+    """
     funding = funding or {}
     idx = {sym: {t: i for i, t in enumerate(s.t)} for sym, s in data.items()}
     qv = {sym: _rolling_qv(s, 86_400_000//eng.bar_ms) for sym, s in data.items()}
@@ -246,15 +306,16 @@ def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None
     timeline = sorted({t for s in data.values() for t in s.t})
     res = Result()
     balance = high = day_start = eng.initial_equity
-    day, streak, pos, pending = None, 0, None, None
+    day, streak = None, 0
+    positions, pending = [], []  # pending: (sym, sig, due_ms, risk_budget)
     daily_hit = dd_hit = False
+    res.max_concurrent = 0
 
     def reject(reason):
         res.rejects[reason] = res.rejects.get(reason, 0)+1
 
-    def close(ref, reason, t_close):
-        nonlocal balance, pos, streak, high
-        p = pos
+    def close(p, ref, reason, t_close):
+        nonlocal balance, streak, high
         fill = ref*(1-p["side"]*eng.slip)
         gross = p["side"]*(fill-p["entry"])*p["qty"]
         exit_fee = fill*p["qty"]*eng.fee
@@ -272,64 +333,77 @@ def simulate(data: dict, signals: dict, eng: Engine, funding: dict | None = None
             res.lock_triggers["loss_streak_3"] += 1
         high = max(high, balance)
         res.max_drawdown = max(res.max_drawdown, 1-balance/high)
-        pos = None
+        positions.remove(p)
 
     for t in timeline:
         d = datetime.fromtimestamp(t/1000, timezone.utc).astimezone(BANGKOK).date()
         if d != day:
             day, day_start, daily_hit = d, balance, False
-        # 1) pending intent executes at this bar's open (strictly after the signal bar)
-        if pending and pos is None:
-            sym, sig, due = pending
-            if t >= due:
-                pending = None
-                i = idx[sym].get(due)
-                if t == due and i is not None:
-                    s = data[sym]
-                    pos = _open(sym, sig, s, i, balance, eng, reject)
-        # 2) manage the open position on this bar (entry bar included, like paper.py)
-        if pos is not None:
-            s = data[pos["sym"]]
-            i = idx[pos["sym"]].get(t)
-            if i is not None:
-                side = pos["side"]
-                pos["bars"] += 1
-                o, h, l, c = s.o[i], s.h[i], s.l[i], s.c[i]
-                t_close = t+eng.bar_ms-1
-                stop_hit = l <= pos["stop"] if side == 1 else h >= pos["stop"]
-                tgt = pos["target"]
-                target_hit = tgt is not None and (h >= tgt if side == 1 else l <= tgt)
-                if stop_hit:
-                    ref = min(pos["stop"], o) if side == 1 else max(pos["stop"], o)
-                    close(ref, "STOP", t_close)
-                elif target_hit:
-                    close(tgt, "TARGET", t_close)
-                elif pos["bars"] >= eng.max_hold_bars:
-                    close(c, "TIME", t_close)
-                elif eng.exit_mode == "trail":
-                    pos["best"] = max(pos["best"], h) if side == 1 else min(pos["best"], l)
-                    if side*(c-pos["entry"]) >= eng.breakeven_r*pos["dist"]:
-                        be = pos["entry"]*(1+side*(2*eng.fee+2*eng.slip+eng.reserve))
-                        pos["stop"] = max(pos["stop"], be) if side == 1 else min(pos["stop"], be)
-                    trail = pos["best"]-side*eng.trail_atr*pos["atr"]
-                    if side*(trail-pos["entry"]) > 0:  # only trail once in profit
-                        pos["stop"] = max(pos["stop"], trail) if side == 1 else min(pos["stop"], trail)
-                if balance <= day_start*0.98 and not daily_hit:
-                    daily_hit = True
-                    res.lock_triggers["daily_2pct"] += 1
-                if balance <= high*0.92 and not dd_hit:
-                    dd_hit = True
-                    res.lock_triggers["drawdown_8pct"] += 1
-                elif balance > high*0.92:
-                    dd_hit = False
-        # 3) new intent only when flat, from signals on the bar that just closed
-        if pos is None and pending is None and t in by_time:
-            ranked = _eligible(by_time[t], t, data, idx, qv, eng)
-            for sym, sig in ranked:
-                if eng.long_only and sig.side != 1:
+        # 1) pending intents execute at this bar's open (strictly after the signal bar)
+        for item in [x for x in pending if t >= x[2]]:
+            pending.remove(item)
+            sym, sig, due, budget = item
+            i = idx[sym].get(due)
+            if t == due and i is not None and len(positions) < eng.max_positions:
+                p = _open(sym, sig, data[sym], i, balance, eng, reject, budget)
+                if p:
+                    positions.append(p)
+        res.max_concurrent = max(res.max_concurrent, len(positions))
+        # 2) manage open positions on this bar (entry bar included, like paper.py)
+        for p in list(positions):
+            s = data[p["sym"]]
+            i = idx[p["sym"]].get(t)
+            if i is None:
+                continue
+            side = p["side"]
+            p["bars"] += 1
+            o, h, l, c = s.o[i], s.h[i], s.l[i], s.c[i]
+            t_close = t+eng.bar_ms-1
+            stop_hit = l <= p["stop"] if side == 1 else h >= p["stop"]
+            tgt = p["target"]
+            target_hit = tgt is not None and (h >= tgt if side == 1 else l <= tgt)
+            if stop_hit:
+                close(p, min(p["stop"], o) if side == 1 else max(p["stop"], o), "STOP", t_close)
+            elif target_hit:
+                close(p, tgt, "TARGET", t_close)
+            elif p["bars"] >= eng.max_hold_bars:
+                close(p, c, "TIME", t_close)
+            elif eng.exit_mode == "trail":
+                p["best"] = max(p["best"], h) if side == 1 else min(p["best"], l)
+                if side*(c-p["entry"]) >= eng.breakeven_r*p["dist"]:
+                    be = p["entry"]*(1+side*(2*eng.fee+2*eng.slip+eng.reserve))
+                    p["stop"] = max(p["stop"], be) if side == 1 else min(p["stop"], be)
+                trail = p["best"]-side*eng.trail_atr*p["atr"]
+                if side*(trail-p["entry"]) > 0:  # only trail once in profit
+                    p["stop"] = max(p["stop"], trail) if side == 1 else min(p["stop"], trail)
+        if balance <= day_start*0.98 and not daily_hit:
+            daily_hit = True
+            res.lock_triggers["daily_2pct"] += 1
+        if balance <= high*0.92 and not dd_hit:
+            dd_hit = True
+            res.lock_triggers["drawdown_8pct"] += 1
+        elif balance > high*0.92:
+            dd_hit = False
+        # 3) new intents from signals on the bar that just closed, into free slots only
+        free = eng.max_positions-len(positions)-len(pending)
+        if free > 0 and t in by_time:
+            busy = {p["sym"] for p in positions} | {x[0] for x in pending}
+            open_risk = sum(p["risk"] for p in positions)
+            chosen = []
+            for sym, sig in _eligible(by_time[t], t, data, idx, qv, eng):
+                if sym in busy or (eng.long_only and sig.side != 1):
                     continue
-                pending = (sym, sig, t+eng.bar_ms)
-                break
+                chosen.append((sym, sig))
+                busy.add(sym)
+                if len(chosen) == free:
+                    break
+            if chosen:
+                if eng.max_positions == 1:
+                    budget = balance*eng.risk_fraction
+                else:
+                    budget = max(0.0, balance*eng.risk_fraction-open_risk)/free
+                for sym, sig in chosen:
+                    pending.append((sym, sig, t+eng.bar_ms, budget))
     res.final_equity = balance
     return res
 
@@ -341,7 +415,7 @@ def _eligible(cands, t, data, idx, qv, eng):
     return sorted(((s, g) for s, g in cands if s in top), key=lambda x: (-x[1].score, x[0]))
 
 
-def _open(sym, sig, s, i, balance, eng: Engine, reject):
+def _open(sym, sig, s, i, balance, eng: Engine, reject, budget=None):
     side, o = sig.side, s.o[i]
     entry = o*(1+side*eng.slip)
     if eng.reanchor:
@@ -367,7 +441,8 @@ def _open(sym, sig, s, i, balance, eng: Engine, reject):
     stop_fill = stop*(1-side*eng.slip)
     unit_risk = abs(entry-stop_fill)+eng.fee*(entry+stop_fill)+entry*eng.reserve
     unit_cash = entry/eng.leverage+entry*(2*eng.fee+eng.reserve+2*eng.slip)
-    qty = min(balance*eng.risk_fraction/unit_risk, balance*eng.max_notional_fraction/entry, balance/unit_cash)
+    budget = balance*eng.risk_fraction if budget is None else budget
+    qty = min(budget/unit_risk, balance*eng.max_notional_fraction/entry, balance/unit_cash)
     if qty <= 0:
         reject("NO_SIZE"); return None
     return {"sym": sym, "side": side, "entry": entry, "stop": stop, "target": target, "qty": qty,
@@ -418,6 +493,9 @@ VARIANTS = {
     "v1_baseline":      (1, "v1", V1),
     "v1_reanchor":      (1, "v1", replace(V1, reanchor=True, max_adverse_drift_r=0.25)),
     "v1_reanchor_cost": (1, "v1", replace(V1, reanchor=True, max_adverse_drift_r=0.25, cost_gate=0.25)),
+    "v1_3slots":        (1, "v1", replace(V1, max_positions=3)),
+    "testnet_adaptive": (1, "testnet", replace(V1, max_positions=3)),
+    "testnet_riskaware": (1, "testnet_ra", replace(V1, max_positions=3)),
     "v2_1h_fixed2R":    (4, "v2", replace(V1, bar_ms=HOUR_MS, max_hold_bars=24, reanchor=True,
                                           max_adverse_drift_r=0.25, cost_gate=0.25)),
     "v2_1h_trail":      (4, "v2", replace(V1, bar_ms=HOUR_MS, max_hold_bars=48, reanchor=True,
@@ -431,6 +509,8 @@ def run_variant(name, data15: dict, funding=None, cost_mult=1.0, v2_params=V2Par
     data = data15 if factor == 1 else {s: resample(x, factor, BAR_MS) for s, x in data15.items()}
     if kind == "v1":
         sigs = {s: baseline_signals(s, x) for s, x in data.items()}
+    elif kind in ("testnet", "testnet_ra"):
+        sigs = {s: testnet_signals(s, x, kind == "testnet_ra") for s, x in data.items()}
     else:
         btc = data.get("BTCUSDT")
         sigs = {s: v2_signals(x, v2_params, btc) for s, x in data.items()}
@@ -439,7 +519,8 @@ def run_variant(name, data15: dict, funding=None, cost_mult=1.0, v2_params=V2Par
 
 def split_report(res: Result, split_ms=None):
     out = {"all": metrics(res.trades), "final_equity": round(res.final_equity, 3),
-           "max_drawdown": round(res.max_drawdown, 4), "rejects": res.rejects,
+           "max_drawdown": round(res.max_drawdown, 4),
+           "max_concurrent_positions": getattr(res, "max_concurrent", None), "rejects": res.rejects,
            "lock_triggers_counted_not_enforced": res.lock_triggers}
     if split_ms:
         out["in_sample"] = metrics([t for t in res.trades if t.open_ms < split_ms])
