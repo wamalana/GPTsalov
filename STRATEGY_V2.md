@@ -107,7 +107,7 @@ Funding ใน ledger ใช้ reserve 10 bps คงที่ (public klines en
 ## 4. ทำซ้ำได้
 
 ```bash
-python3 -m unittest discover -s tests -q          # 183 tests
+python3 -m unittest discover -s tests -q          # 187 tests
 python3 -m gptsalov.backtest download --dir data/hist --start 2024-01 --end 2026-08   # ~200 MB
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist out.json               # ทุก variant (~30 นาที)
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist v3.json v3_4h_trail    # เฉพาะตัวที่ต้องการ
@@ -123,3 +123,55 @@ PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist v3.json v3_4h_trail 
 - Risk lock นับแต่ไม่หยุดเทรด (equity ของ v1 จึงไหลถึงเกือบ 0 — ระบบจริงจะล็อกก่อน)
 - Universe 20 เหรียญ = survivorship bias; ข้อมูลรวม ~2.7 ปี มีทั้งช่วงขาขึ้นและขาลง
 - Sanity check: random walk ทุก variant ขาดทุนเท่าต้นทุน (ไม่มี lookahead ที่สร้างกำไรปลอม)
+
+## 6. รอบ 2 (18 ก.ย. ค่ำ) — ทดสอบความทนทานของตัว 4h แล้วปรับเป็น v3.1
+
+คำถามของรอบนี้: +0.169R ของ `v3_4h_trail` เป็น "ช่องเดียวที่โชคดี" หรือทั้งย่านพารามิเตอร์รอบ ๆ เป็นบวก?
+ทดสอบ 23 ช่องที่ประกาศไว้ก่อน (เปลี่ยนทีละ 1 ตัวแปร) + 6 ช่องผสม + ขยาย universe เป็น 39 เหรียญ
+(เพิ่ม OP, ATOM, ETC, ICP, RUNE, INJ, SEI, TIA, WLD, ORDI, FET, RENDER, STX, IMX, GALA, SAND, AXS ฯลฯ —
+รวมเหรียญที่เคยใหญ่แล้วซบเซา เพื่อลด survivorship bias) ผลดิบ: `sweep_4h_*.json`, `v3_1_39sym.json`
+
+### 6.1 ผลสำคัญ (20 เหรียญ, avg R / IS / OOS)
+
+| ช่อง | เทรด | avg R | IS | OOS | อ่านว่า |
+|---|---:|---:|---:|---:|---|
+| base (v3_4h_trail) | 256 | +0.169 | +0.163 | +0.190 | |
+| **ทุกช่อง 4h ทั้ง 21 ช่อง** | 157–621 | **+0.07…+0.31** | ทุกช่องบวก | | ไม่ใช่ช่องโดดเดี่ยว — ย่านทั้งหมดเป็นบวก |
+| stop 0.75 / **1.0** / 1.25 / 1.5 / 2.0 ATR | | +0.20 / **+0.31** / +0.25 / +0.17 / +0.14 | | | stop แคบกว่าดีกว่าอย่างเป็นระบบ พีคที่ 1.0–1.25 |
+| ถอด BTC filter | 290 | +0.075 | +0.082 | +0.055 | BTC filter สำคัญที่สุด |
+| ถอด chase limit / volume | ~290 | +0.08 / +0.09 | | | ตัวกรอง "ไม่ไล่ราคา" สำคัญ |
+| 2 slots (1 ต่อทิศ) | 265 | +0.181 | +0.182 | +0.178 | avg R เท่าเดิม, DD ลด 7.9% → 4.3% |
+| 3 slots ไม่จำกัดทิศ | 621 | +0.142 | +0.151 | +0.114 | เทรดมากขึ้นแต่ต่อไม้แย่ลง |
+| daily (1D) | 45 | −0.149 | | | น้อยเกินตัดสิน; ไม่ดี |
+| 2h | 486 | +0.012 | | | 4h คือจุดที่ edge เริ่มโผล่ |
+
+### 6.2 ผลบน universe 39 เหรียญ (จัดอันดับ top-20 ตาม volume ณ เวลานั้น = ใกล้ระบบจริงกว่า)
+
+| variant | เทรด | avg R | CI95 | PF | IS | OOS | ×1.5 | DD |
+|---|---:|---:|---|---:|---:|---:|---:|---:|
+| v3_4h_trail (เดิม) | 259 | +0.160 | −0.02…+0.36 | 1.29 | +0.211 (193) | **+0.009** (66) | +0.138 | 8.9% |
+| **v3_1_4h_trail** (stop 1.0 ATR + 2 slots 1/ทิศ) | 328 | **+0.252** | **+0.01…+0.49** | 1.45 | +0.305 (253) | +0.076 (75) | +0.198 | **5.0%** |
+
+v3.1: 9 ใน 11 ไตรมาสบวก, ตัด ADA ออกยัง +0.145, short (+0.42) ดีกว่า long (+0.14)
+
+**ข้อเท็จจริงที่ต้องพูดตรง ๆ**: เมื่อขยาย universe ให้สมจริง OOS ของตัวเดิมหายไปเกือบหมด (+0.19 → +0.009)
+แปลว่า OOS ที่ดูดีรอบก่อนส่วนหนึ่งมาจากการเลือกเหรียญด้วยความรู้วันนี้ v3.1 ยังบวกใน OOS (+0.076) แต่ 75 เทรด
+ยังแยกจากศูนย์ไม่ได้ และ stop 1.0 ATR ถูกเลือกจาก in-sample หลังเห็นตาราง — **OOS ของ v3.1 จึงไม่ใช่ OOS สะอาดอีกต่อไป**
+หลักฐาน OOS ที่แท้จริงถัดจากนี้มีทางเดียวคือ forward ledger
+
+### 6.3 โค้ดที่แก้ในรอบนี้
+
+| ที่ | การเปลี่ยนแปลง |
+|---|---|
+| `backtest.py` | `Engine.one_per_side`; variant `v3_1_4h_trail`; ตาราง `SWEEP` 29 ช่อง + `run_sweep_cell`; `scripts/backtest_sweep.py` (`--symbols all`) |
+| `trend4h.py` | ledger ใช้ **v3.1**: หลายตำแหน่ง (2 slots, 1 ต่อทิศ, แบ่ง risk budget แบบเดียวกับ backtest) และ **สแกน universe จริง** ทุกแท่ง (top-20 USDT perp ตาม volume 24h + BTC, อายุ ≥ 30 วัน) แทน list 20 เหรียญคงที่ → forward ไม่มี survivorship bias |
+| `tests/test_trend4h.py` | parity ledger-vs-simulate บน 9 เหรียญ 400 แท่ง (ทุกไม้ตรงกัน), test 2 slots/1 ต่อทิศ/budget รวม ≤ 0.5% |
+
+ledger ที่สร้างจากรุ่นก่อน (v3_4h_trail) จะถูกปฏิเสธด้วย identity mismatch — ตั้งใจ ให้เริ่มไฟล์ใหม่
+
+### 6.4 เกณฑ์ผ่านของ forward ledger (ประกาศก่อนเริ่ม)
+
+- ≥ 100 เทรดปิด (คาด ~2.5/สัปดาห์ → ~10 เดือน) — ไม่ตัดสินก่อนหน้านั้นไม่ว่าผลจะดีหรือแย่
+- avg R ของ forward อยู่ในช่วง CI ของ backtest 39 เหรียญ (+0.01…+0.49) และ > 0
+- Drawdown ไม่เกิน 2× ของ backtest (10%) ระหว่างทาง ถ้าเกินให้หยุดและทบทวน ไม่ปรับพารามิเตอร์ระหว่างรัน
+- ผ่านแล้วจึงไป Testnet ด้วย risk cap 0.25 USDT เดิม; ไม่มี escalation
