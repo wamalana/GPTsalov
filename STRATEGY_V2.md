@@ -107,7 +107,7 @@ Funding ใน ledger ใช้ reserve 10 bps คงที่ (public klines en
 ## 4. ทำซ้ำได้
 
 ```bash
-python3 -m unittest discover -s tests -q          # 187 tests
+python3 -m unittest discover -s tests -q          # 186 tests
 python3 -m gptsalov.backtest download --dir data/hist --start 2024-01 --end 2026-08   # ~200 MB
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist out.json               # ทุก variant (~30 นาที)
 PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist v3.json v3_4h_trail    # เฉพาะตัวที่ต้องการ
