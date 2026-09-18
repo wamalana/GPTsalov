@@ -1,132 +1,102 @@
-# Strategy review และ v2 candidates — 18 ก.ย. 2026 (Claude)
+# Strategy review + historical backtest — 18 ก.ย. 2026 (Claude)
 
-เอกสารนี้วิเคราะห์กลยุทธ์ `hourly_ema20_donchian20_volume_v1` และเพิ่มเครื่องมือ **historical backtest**
-ที่ repo ยังไม่มี พร้อม candidate รุ่น v2 แบบ research-only
-**ไม่มีการแก้ paper engine, config, risk lock, Testnet หรือ service ที่รันอยู่** และยังไม่มีผลบนข้อมูลจริง
-เพราะ sandbox ที่ใช้พัฒนาเข้า Binance ไม่ได้ ต้องไปรันบน VPS (ขั้นตอนอยู่ท้ายเอกสาร)
+วิเคราะห์ main @ `e98d9c6` (risk-aware + 3 Testnet slots) ด้วย **backtest ข้อมูลจริง**
+20 เหรียญ USDT-perp × ม.ค. 2024 – ส.ค. 2026 (93,504 แท่ง 15m ต่อเหรียญ) พร้อม funding rate จริงจาก
+data.binance.vision แบ่ง in-sample (ก่อน 2026-01-01) / out-of-sample (หลัง)
+**ไม่มีการแก้ paper engine, config, risk lock, Testnet หรือ service ที่รันอยู่** ผลดิบอยู่ใน
+`research/backtest-2026-09-18/`
 
-## 1. สรุปปัญหา (เรียงตามผลกระทบ)
+## TL;DR
 
-### 1.1 ต้นทุนกินกำไรทั้งหมด — ปัญหาหลัก
-ต้นทุนไป-กลับตามโมเดล = fee 5+5 + slippage 3+3 + funding reserve 10 = **26 bps ของ notional**
-แต่ stop = 1.5 × ATR(15m) และตัวกรองยอม ATR ต่ำสุด 0.2% → stop แคบได้ถึง 0.3%
+1. **สัญญาณ v1 (EMA20 1h + Donchian 20 × 15m + volume) ไม่มี edge แม้ก่อนหักต้นทุน**
+   9,534 เทรด gross −0.057R, net **−0.154R/เทรด** (CI95 −0.17…−0.14) ติดลบทั้ง IS, OOS, long, short และทุกช่วงเวลาของวัน
+2. **Testnet risk-aware ปัจจุบันดีที่สุดในตระกูล 15m แต่ยังขาดทุน**: 4,769 เทรด **−0.057R** (CI −0.075…−0.038)
+   ตัวกรองลดความเสียหาย แต่แปลงสัญญาณที่ไม่มี edge ให้มี edge ไม่ได้
+3. **3 slots ไม่ช่วย**: v1 3 slots −0.149R vs 1 slot −0.154R — แค่เทรดถี่ขึ้น 2.6 เท่าด้วย expectancy ติดลบเท่าเดิม
+4. **ตัวที่มีแนวโน้มดีที่สุดคือ trend-following บน 4h** (`v3_4h_trail`): +0.169R, PF 1.32, 256 เทรด, DD 7.9%,
+   บวกทั้ง IS (+0.16) และ OOS (+0.19), ต้นทุน×1.5 ยัง +0.16 — **แต่ CI ยังคร่อม 0 (−0.03…+0.38) ยังไม่พิสูจน์**
+5. **Risk escalation ใน `adaptive_risk.risk_allowance` จะเพิ่มความเสี่ยงเพราะโชค**: กับกลยุทธ์ testnet_riskaware
+   ที่ติดลบ ประตูเลื่อนความเสี่ยง (0.25 → 2 USDT) ผ่านโดยบังเอิญ ~8% ต่อครั้งที่ตรวจ
 
-| stop distance | net reward/risk ของเป้า 2R | win rate ขั้นต่ำเพื่อเท่าทุน |
-|---:|---:|---:|
-| 0.30% | 0.61 | 62% |
-| 0.50% | 0.97 | 51% |
-| 0.75% | 1.23 | 45% |
-| 1.00% | 1.38 | 42% |
-| 1.50% | 1.56 | 39% |
+## 1. ผล backtest (ต้นทุน fee 5 bps + slippage 3 bps ต่อข้าง, funding จริง)
 
-(ประมาณ: reward = 2d − 0.26%, risk = d + 0.26%) กลยุทธ์ breakout ทั่วไปชนะราว 35–45%
-จึงติดลบเชิงโครงสร้างในช่วงตลาดนิ่ง หลักฐานที่ยืนยัน:
+| variant | เทรด | win | avg R | CI95 | gross R | cost R | IS | OOS | ×1.5 cost |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| v1_baseline (paper) | 9,534 | 36% | −0.154 | −0.17…−0.14 | −0.057 | 0.097 | −0.154 | −0.155 | −0.213 |
+| v1_reanchor | 9,663 | 35% | −0.154 | −0.17…−0.13 | −0.053 | 0.100 | −0.152 | −0.158 | −0.224 |
+| v1_reanchor_cost | 4,664 | 37% | −0.100 | −0.13…−0.07 | −0.038 | 0.062 | −0.094 | −0.130 | −0.144 |
+| v1_3slots | 25,103 | 36% | −0.149 | −0.16…−0.14 | −0.051 | 0.097 | −0.141 | −0.172 | −0.208 |
+| testnet_adaptive (3 slots) | 16,169 | 40% | −0.089 | −0.10…−0.08 | −0.032 | 0.056 | −0.086 | −0.096 | −0.127 |
+| **testnet_riskaware (3 slots)** | 4,769 | 41% | **−0.057** | −0.075…−0.038 | −0.027 | 0.030 | −0.062 | −0.035 | −0.079 |
+| v2_1h_fixed2R | 1,189 | 37% | −0.015 | −0.08…+0.06 | +0.037 | 0.052 | −0.033 | +0.051 | −0.022 |
+| v2_1h_trail | 958 | 43% | −0.024 | −0.11…+0.07 | +0.029 | 0.052 | −0.039 | +0.032 | −0.030 |
+| **v3_4h_trail** | 256 | 45% | **+0.169** | −0.03…+0.38 | +0.209 | 0.040 | +0.163 | +0.190 | +0.160 |
+| v3_4h_fixed3R | 272 | 32% | +0.121 | −0.07…+0.33 | +0.157 | 0.036 | +0.097 | +0.201 | +0.094 |
 
-- **ผล audit VPS (TUNING.md, 13 ก.ย.)**: baseline 18 เทรด gross **+0.99** USDT แต่ fee+reserve **2.11** → net **−1.12**
-  สัญญาณมี gross เป็นบวก แต่ต้นทุนเป็น 213% ของ gross
-- **Backtest บน random walk (ไม่มี edge)**: v1 เสีย **−0.29R ต่อเทรด** (CI95 −0.32…−0.25, 2,940 เทรด)
-  = สัญญาณต้องมี edge มากกว่า 0.29R ต่อเทรดแค่เพื่อเท่าทุน ขณะที่ candidate 1h เสียเพียง ~−0.1R
+`testnet_*` เรียกฟังก์ชันจริงของ main (`strategy_review`, `adaptive_stop`, `order_risk.costs` RR ≥ 1.2,
+entry envelope ±0.5%, net RR ≥ 1) และใช้ 3 slots ที่แบ่ง risk budget ร่วมกันแบบ `multi_candidate`
 
-### 1.2 Stop ถูกบีบจากการเข้าช้าหนึ่งแท่ง (bug เชิงออกแบบ)
-Stop/target คำนวณจากราคาปิดแท่งสัญญาณ แต่เข้าจริงที่ราคาเปิดแท่งถัดไป และ drift guard อนุญาต 0.5% แบบค่าคงที่
-ซึ่ง**ใหญ่กว่า stop ทั้งก้อน**ได้ ตัวอย่างจริง: LINK short ระยะ entry→stop เหลือแค่ **7.6%** ของที่วางแผน
-แต่ระบบรายงาน net RR 3.59 แล้วโดน stop ทันที
-**แก้**: `reanchor` — วัด stop/target จากราคาเข้าจริง และยกเลิกถ้าราคาวิ่งสวนไปแล้วเกิน 25% ของระยะ stop
+### สิ่งที่ข้อมูลบอก
+- **ปัญหาหลักคือสัญญาณ ไม่ใช่ต้นทุน** (แก้ข้อสรุปรอบก่อนของผม): บนข้อมูลจริง v1 ขาดทุน gross −0.057R
+  ก่อนหักต้นทุนด้วยซ้ำ breakout 15m ในคริปโตกลับตัวบ่อยกว่าวิ่งต่อ ผล audit VPS 18 เทรดที่ gross เป็นบวกคือ noise
+- **Timeframe คือตัวแปรที่เปลี่ยนผลมากที่สุด**: gross R ขยับจาก −0.06 (15m) → +0.04 (1h) → +0.21 (4h)
+  สอดคล้องกับงานวิจัย time-series momentum ในคริปโตที่พบ edge ในกรอบวัน/หลายชั่วโมง ไม่ใช่นาที
+- **Testnet risk-aware ส่วนใหญ่ปิดด้วย TIME** (3,784/4,769): stop 2 ATR + เป้า 2× ระยะนั้นไกลเกินกว่าจะถึงใน 4 ชม.
+  ผลคือเข้าตามสัญญาณแล้วออกตามเวลา = ผลลัพธ์แทบสุ่ม ลบด้วยต้นทุน
+- **Risk lock จะทำงานถี่มาก**: testnet_riskaware เจอแพ้ติดกัน 3 ไม้ 423 ครั้ง (~ทุก 11 เทรด) บนระบบจริงแต่ละครั้งคือ
+  LOSS_STREAK_REVIEW ที่ต้องปลดด้วยมือ
+- **Short ไม่ได้แย่กว่า long อย่างมีนัย** ข้อสังเกต "long ชนะ short แพ้" จาก 18 เทรดใน audit ไม่ได้รับการยืนยัน
 
-### 1.3 Timeframe 15m ไม่เข้ากับโครงสร้างต้นทุน
-ATR ของแท่ง 1h ราว 2 เท่าของ 15m ขณะที่ต้นทุนต่อเทรดคงที่ → cost share ลดลงครึ่งหนึ่ง
-และสัญญาณ breakout บน 15m มี noise สูง (false breakout บ่อย)
+### ข้อควรระวังของ v3_4h_trail (ก่อนใครตื่นเต้น)
+- 256 เทรดใน 32 เดือน (~2/สัปดาห์) CI ยังคร่อม 0; OOS มีแค่ 60 เทรด — **ยังไม่ผ่านเกณฑ์ข้อ 2 ที่ผมตั้งไว้เอง (OOS ≥ 100)**
+- median R = −0.94: ขาดทุนเล็กบ่อย กำไรมาจากเทรดใหญ่ไม่กี่ไม้ (ธรรมชาติของ trend-following) แพ้ติดกันยาวเป็นเรื่องปกติ
+- ตัดเหรียญที่กำไรมากสุด (ADA) ออกยัง +0.108R; 8 ใน 11 ไตรมาสเป็นบวก
+- Universe 20 เหรียญเลือกด้วยความรู้วันนี้ (survivorship bias) ซึ่งเข้าข้างกลยุทธ์ long
+- ผมทดสอบ 10 variants — ตัวที่ดีที่สุดย่อมดูดีเกินจริงบ้าง (multiple testing)
 
-### 1.4 การจัดอันดับเลือกตัวที่ "วิ่งไปไกลแล้ว"
-`score = |close − EMA| / ATR` เลือกเหรียญที่ยืดตัวมากที่สุดก่อน = ไล่ราคา มีโอกาส mean-revert สูง
-v2 ใช้ efficiency ratio × volume surge แทน และตัดสัญญาณที่ปิดเกินแนว breakout > 0.75 ATR
+## 2. ข้อค้นพบในโค้ด main ใหม่
 
-### 1.5 Multi-agent ยังไม่ได้เพิ่มข้อมูลใหม่
-Agent trend/momentum/volatility ตรวจเงื่อนไข**ชุดเดียวกับ** `core.strategy` ซ้ำ (GPT ระบุไว้เองใน RISK_AWARE_STRATEGY.md)
-การที่ทุก agent เห็นตรงกันจึงไม่ใช่หลักฐานอิสระ ข้อสังเกตเพิ่ม: `multiagent_shadow.py` บน main import
-`.ai_review` ที่มีอยู่แค่ใน branch `feat/risk-aware-leverage` → ถ้าใส่ `--ai-config` บน main จะ crash
+1. **`order_risk` RR ≥ 1.2 บังคับ stop ≥ ~2.4% ของราคา**: ต้นทุนรวม 46 bps + drift เลวสุด 0.5%
+   | ระยะ stop | 0.5% | 1% | 1.5% | 2% | 2.5% | 3% |
+   |---|---:|---:|---:|---:|---:|---:|
+   | net RR (เป้า 2×) | 0.10 | 0.61 | 0.91 | 1.10 | 1.23 | 1.33 |
+   บน 15m จึงผ่านได้เฉพาะเหรียญผันผวนสูง: สัญญาณเหลือ 12% (12,358 จาก 102,435) — เป็นการเลือกเหรียญที่เหวี่ยงที่สุด
+2. **`adaptive_risk.risk_allowance` เลื่อนความเสี่ยงจากหน้าต่าง 30 เทรด**: win rate ของ 30 เทรดมี SE ~9 pp
+   เงื่อนไข "ดีขึ้น 10 pp" จึงผ่านได้ด้วยโชค จำลอง bootstrap จากผล R จริงของแต่ละ variant: ผ่าน 4–8% ต่อครั้งแม้ expectancy ติดลบ
+   และถูกตรวจทุกเทรดหลังเทรดที่ 60 → ในระยะยาวแทบแน่นอนว่าจะเลื่อนจาก 0.25 → 0.5 → 1 → 2 USDT
+   (ถ้ารันด้วย `--risk-aware` เพดาน `order_risk.risk_budget` 0.25 จะกันไว้ แต่ถ้าไม่ใส่ flag ทางนี้เปิดอยู่
+   และ `equity*0.04` = เสี่ยง 4% ต่อไม้ เกินกฎ 0.5% ของ `core.Config` 8 เท่า) **แนะนำลบ escalation ออกจนกว่าจะมี edge ที่พิสูจน์ได้**
+3. **3 slots = เดิมพันซ้ำทิศเดียวกัน**: alt กับ alt มี correlation สูง `multi_candidate` ไม่จำกัดทิศ/กลุ่ม
+   (อาจเป็น long alt 3 ตัวพร้อมกัน) แม้ budget รวมถูกแบ่งแล้ว แต่ไม่ได้กระจายความเสี่ยงจริง
+4. **Ranking ยังใช้ `|close−EMA|/ATR`** ทั้งใน `market_scanner` และ `multi_candidate` = เลือกตัวที่ยืดมากสุดก่อน
+5. `ai_review` ถูก merge แล้ว ปัญหา import crash บน main หมดไป
 
-### 1.6 ไม่มี backtest → forward test ช้าเกินจะตัดสินได้
-R ต่อเทรดมี SD ราว 1.0 → ต้องใช้ ~**400 เทรด**จึงจะแยก edge 0.1R ออกจาก noise ได้ (2 SE)
-forward ledger ได้ไม่กี่เทรดต่อวัน และแต่ละกลุ่มโดน LOSS_STREAK lock ไปแล้ว การตัดสินจาก 5–18 เทรดคือการเดา
-ต้องทดสอบย้อนหลังหลายปีก่อน แล้วใช้ forward/Testnet เพื่อยืนยันการ execute เท่านั้น
+## 3. คำแนะนำ (เรียงตามลำดับ)
 
-### 1.7 Funding reserve 10 bps คงที่
-Funding ปกติ ~1 bp ต่อ 8 ชม. ถือ ≤ 4 ชม. จึงถูกเผื่อเกินจริง ~10 เท่า (อนุรักษ์นิยมแต่บิดเบือนการเปรียบเทียบ)
-backtest ใช้ funding rate ย้อนหลังจริงจาก archive เมื่อมีไฟล์ ถ้าไม่มีจะใช้ reserve เดิม
+1. **หยุดลงทุนเวลาใน infrastructure ของสัญญาณ v1 15m** — execution/risk layer ที่ดีแค่ไหนก็ไม่ทำให้ expectancy ติดลบเป็นบวก
+2. **ปิด risk escalation** (`risk_allowance` คืน 0.25 เสมอ) จนกว่ากลยุทธ์จะผ่านเกณฑ์ข้อ 4
+3. **ย้ายงานวิจัยไป 4h**: รัน `v3_4h_trail` เป็น forward paper ledger แยก (ไม่ reset ของเดิม) ทดลองอย่างน้อย
+   100 เทรดหรือ 12 เดือน ระหว่างนั้นเพิ่ม universe แบบ point-in-time (รวมเหรียญที่ถูกถอด) เพื่อลด survivorship bias
+4. **เกณฑ์ก่อนเข้า Testnet/เงินจริง** (ประกาศไว้ก่อน): OOS ≥ 100 เทรด, avg R > 0 และ CI ล่าง > −0.05,
+   PF > 1.15, ต้นทุน×1.5 ยังบวก, ตัดเหรียญที่ดีสุดยังไม่ติดลบ, forward paper ไม่ต่างจาก backtest เกินช่วง CI
+5. ถ้าจะใช้หลายตำแหน่ง ให้จำกัด **1 ตำแหน่งต่อทิศทาง** หรือเพิ่ม BTC beta cap แทนการเปิด alt ทิศเดียวกัน 3 ตัว
 
-## 2. สิ่งที่เพิ่มใน branch นี้
-
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `gptsalov/backtest.py` | ดาวน์โหลดแท่ง 15m + funding จาก data.binance.vision, replay portfolio แบบ one-position, แยก in-sample/out-of-sample, bootstrap CI, stress ต้นทุน |
-| `gptsalov/strategy_v2.py` | สัญญาณ candidate v2 (pure functions, float, ไม่มีสิทธิ์ส่งคำสั่ง) |
-| `tests/test_backtest.py` | 9 tests: parity กับ `core.strategy` จริง, no-lookahead, stop-first/gap, cost gate, random-walk sanity |
-
-**Baseline ใน backtest คือโค้ด production ตัวจริง** (`core.strategy` บนหน้าต่าง 199 แท่งเดียวกับ live scan)
-มี test ยืนยันว่า pre-filter ไม่ทำสัญญาณหาย
-
-### Variants ที่ประกาศล่วงหน้า (ไม่ได้ fit กับข้อมูล)
-
-| ชื่อ | สัญญาณ | การเปลี่ยนแปลง |
-|---|---|---|
-| `v1_baseline` | v1 15m | เหมือน production |
-| `v1_reanchor` | v1 15m | stop/target จากราคาเข้าจริง, ยกเลิกถ้าสวน > 0.25 stop |
-| `v1_reanchor_cost` | v1 15m | + cost gate: ต้นทุนไป-กลับ ≤ 25% ของระยะ stop |
-| `v2_1h_fixed2R` | v2 1h | breakout 20 แท่ง 1h + EMA50 ชัน + ER ≥ 0.3 + close location ≥ 0.6 + ไม่ไล่ > 0.75 ATR + ATR ยังไม่ขยาย > 1.3× + ทิศเดียวกับ BTC; เป้า 2R, ถือ ≤ 24 ชม. |
-| `v2_1h_trail` | v2 1h | สัญญาณเดียวกัน, ไม่มีเป้าคงที่: breakeven ที่ +1R แล้ว trail 2.5 ATR, ถือ ≤ 48 ชม. |
-
-เหตุผลของ v2: breakout มีกำไรจาก "หางขวา" ของเทรนด์ การตัดที่ 2R + ปิดใน 4 ชม. ตัดหางนั้นทิ้ง
-ขณะที่ต้นทุนยังจ่ายเต็ม ตัวกรอง BTC ลดการเปิด alt ทวนทิศตลาดรวม (alt correlation กับ BTC สูง)
-
-## 3. ผลตรวจบนข้อมูลสังเคราะห์ (ไม่ใช่หลักฐานกำไร)
-
-Random walk 12 เหรียญ × 30,000 แท่ง 15m — ไม่มี edge ใด ๆ ดังนั้นทุก variant **ควร** ติดลบเท่าต้นทุน:
-
-| variant | เทรด | avg R | CI95 |
-|---|---:|---:|---|
-| v1_baseline | 2,940 | −0.288 | −0.32…−0.25 |
-| v1_reanchor | 2,971 | −0.284 | −0.32…−0.25 |
-| v1_reanchor_cost | 1,754 | −0.131 | −0.18…−0.08 |
-| v2_1h_fixed2R | 265 | −0.116 | −0.25…+0.03 |
-| v2_1h_trail | 216 | −0.080 | −0.26…+0.11 |
-
-ตีความ: harness ไม่มี lookahead bias (ไม่มี variant ไหน "ชนะ" random walk) และแสดงว่า v2 ลด
-ต้นทุนเชิงโครงสร้างจาก ~0.29R เหลือ ~0.1R ต่อเทรด **edge จริงต้องวัดบนข้อมูลตลาดเท่านั้น**
-
-## 4. ขั้นตอนรันบน VPS
+## 4. ทำซ้ำได้
 
 ```bash
-cd ~/GPTsalov/<release ที่มี branch นี้>
-python3 -m unittest discover -s tests -q
-# ~20 เหรียญ × 32 เดือน ≈ 250 MB CSV; โหลดครั้งเดียว ข้ามไฟล์ที่มีแล้ว
-python3 -m gptsalov.backtest download --dir ~/GPTsalov/data/hist --start 2024-01 --end 2026-08
-python3 -m gptsalov.backtest run --dir ~/GPTsalov/data/hist --split 2026-01-01 --out bt_base.json
-python3 -m gptsalov.backtest run --dir ~/GPTsalov/data/hist --split 2026-01-01 --cost-mult 1.5 --out bt_stress.json
+python3 -m unittest discover -s tests -q          # 180 tests
+python3 -m gptsalov.backtest download --dir data/hist --start 2024-01 --end 2026-08   # ~200 MB
+PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist out.json               # ทุก variant (~30 นาที)
+PYTHONPATH=. python3 scripts/backtest_analysis.py data/hist v3.json v3_4h_trail    # เฉพาะตัวที่ต้องการ
 ```
 
-ใช้แค่ไฟล์ static สาธารณะ ไม่ใช้ API key ไม่แตะ ledger/service ที่รันอยู่ ควรรันด้วย `nice` เพราะใช้ CPU หลายนาที
+รันบน Mac (Python 3.14) 18 ก.ย. 2026 ใช้เฉพาะไฟล์สาธารณะ ไม่ใช้ API key
 
-## 5. เกณฑ์ก่อนนำ variant ไปทดสอบ forward (ประกาศก่อนเห็นผล)
+## 5. โมเดลการจำลองและข้อจำกัด
 
-1. เลือก variant โดยดู **in-sample (ก่อน 2026-01-01) เท่านั้น** ห้ามปรับพารามิเตอร์หลังเห็น out-of-sample
-2. Out-of-sample: avg R > 0 **และ** ≥ 100 เทรด **และ** profit factor > 1.15
-3. `--cost-mult 1.5` ยังไม่ติดลบ
-4. ไม่พึ่งเหรียญเดียว/เดือนเดียว: ตัดเหรียญที่กำไรมากสุดออกแล้ว avg R ยัง ≥ 0
-5. Long และ short ประเมินแยก — ถ้า short ติดลบชัดใน **ทั้งสองช่วง** จึงพิจารณา long-only (ไม่ตัดสินจาก 18 เทรด)
-
-ผ่านแล้วจึงเสียบเป็น `validate_entry`/signal ใน forward ledger ชุดใหม่ (ไม่ reset ของเดิม) แล้วค่อย Testnet
-ถ้าไม่มีตัวไหนผ่าน = ข้อมูลบอกว่าไม่มี edge ให้เปลี่ยนแนวคิดสัญญาณ ไม่ใช่เพิ่ม leverage หรือ filter ซ้อน
-
-## 6. ไอเดียถัดไป (ยังไม่ทำ — ทดสอบทีละข้อด้วย harness นี้)
-
-- **Maker entry**: ตั้ง limit ที่แนว breakout เดิม (retest) แทน market ที่ open ถัดไป → fee 2 bps แทน 5 และราคาเข้าดีกว่า แลกกับพลาดบางเทรด
-- **Funding/OI filter**: ไม่ long เมื่อ funding สูงผิดปกติ (ฝั่งเดียวแน่น) ต้องการ OI เพิ่มยืนยัน breakout (archive มี metrics รายวัน)
-- **Regime switch**: ER ต่ำต่อเนื่อง = sideway → ใช้ mean-reversion แยกเป็น strategy อีกตัว ไม่ใช่รวมคะแนน vote
-- **Time-of-day**: วัด avg R ตามชั่วโมง UTC จาก backtest ก่อนตัดช่วงใด ๆ
-
-## ข้อจำกัดของ backtest
-
-ไม่ปัดตาม step/min notional ของ exchange, fill เต็มจำนวน, universe = เหรียญที่ดาวน์โหลด (survivorship bias —
-เหรียญที่ถูกถอดไม่อยู่ในชุด), float แทน Decimal, risk lock นับจำนวนครั้งแต่ไม่หยุดเทรด, ไม่มี liquidation model
-ผลจึงเป็นการเปรียบเทียบ variant ภายใต้สมมติฐานเดียวกัน ไม่ใช่การคาดการณ์ผลตอบแทน
+- Baseline คือ `core.strategy` ตัวจริงบนหน้าต่าง 199 แท่งเดียวกับ live scan (มี test ยืนยัน parity และ no-lookahead)
+- เข้าที่ราคาเปิดแท่งถัดไป + slippage, stop ก่อน target เมื่อแตะแท่งเดียวกัน, gap ใช้ราคาเปิดที่แย่กว่า
+- Testnet จริงเข้าที่ ticker หลังปิดแท่ง (ต่างเล็กน้อย) ไม่ปัด step/min notional, fill เต็มจำนวน, float
+- Risk lock นับแต่ไม่หยุดเทรด (equity ของ v1 จึงไหลถึงเกือบ 0 — ระบบจริงจะล็อกก่อน)
+- Universe 20 เหรียญ = survivorship bias; ข้อมูลรวม ~2.7 ปี มีทั้งช่วงขาขึ้นและขาลง
+- Sanity check: random walk ทุก variant ขาดทุนเท่าต้นทุน (ไม่มี lookahead ที่สร้างกำไรปลอม)
