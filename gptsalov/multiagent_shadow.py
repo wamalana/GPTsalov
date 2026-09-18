@@ -20,7 +20,7 @@ def read_pilot(path):
     return {k: state.get(k) for k in ('lock', 'active', 'error', 'last_check_ms', 'phase')}
 
 
-def analyze(bars, state, now):
+def analyze(bars, state, now, symbol='ETHUSDT', scan_mode=False):
     """All rules inspect the same closed candles. Votes are not probabilities."""
     cfg = Config()
     votes = []
@@ -28,7 +28,7 @@ def analyze(bars, state, now):
         votes.append(dict(agent=agent, verdict=verdict, reason=reason, evidence=evidence))
     expected = now//BAR_MS*BAR_MS-1
     valid = (len(bars) >= 100 and bars[-1].close_ms == expected
-             and 0 <= now-expected <= cfg.max_data_age_ms
+             and 0 <= now-expected <= (BAR_MS+120000 if scan_mode else cfg.max_data_age_ms)
              and all(b.open_ms % BAR_MS == 0 and b.close_ms == b.open_ms+BAR_MS-1
                      for b in bars)
              and all(b.open_ms-a.open_ms == BAR_MS for a,b in zip(bars,bars[1:])))
@@ -60,7 +60,7 @@ def analyze(bars, state, now):
                    for i in range(len(bars)-14,len(bars))), dec(0))/14
         ratio = atr/current.close
         vote('volatility', 'PASS' if dec('.002') <= ratio <= dec('.05') else 'VETO', 'ATR14_RANGE', atr_ratio=str(ratio))
-        signal = strategy('ETHUSDT', bars)
+        signal = strategy(symbol, bars)
     else:
         for agent in ('trend','momentum','volatility'):
             vote(agent, 'ABSTAIN', 'INVALID_INPUT')
