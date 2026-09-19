@@ -267,3 +267,5 @@ class CandidateIntegrationTests(unittest.TestCase):
             allowed,review=evaluate([],{},0,SimpleNamespace(side=1),risk_aware=True)
         self.assertFalse(allowed)
         self.assertEqual(review['execution_gate'],'BLOCK')
+
+from tests.conservative_limits import setUpModule, tearDownModule  # noqa: E402,F401

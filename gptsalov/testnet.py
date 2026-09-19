@@ -3,6 +3,7 @@
 Development component, deliberately not wired to paper services or a trading CLI.
 Use a dedicated empty one-way Testnet account. Never use production credentials.
 """
+from . import testnet_limits as _limits
 import hashlib
 import hmac
 import json
@@ -158,7 +159,7 @@ class Coordinator:
         if 'risk_model' in p:
             from .order_risk import VERSION, MAX_LEVERAGE
             if (p['risk_model'] != VERSION or type(p.get('leverage')) is not int
-                    or not 1 <= p['leverage'] <= MAX_LEVERAGE):
+                    or not 1 <= p['leverage'] <= _limits.MAX_LEVERAGE):
                 raise ValueError('Invalid risk model/leverage')
             if p.get('purpose') not in ('STRATEGY_PILOT','MULTI_MARKET_TESTNET'):
                 raise ValueError('Dynamic leverage requires strategy pilot')

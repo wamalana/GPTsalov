@@ -15,6 +15,7 @@ from .core import Config, Rules, dec, encode, size, closed_bars, strategy, BAR_M
 from .market import BinancePublic
 from .execution_sizing import buffered_size, modeled_fill_risk
 from .adaptive_risk import adaptive_stop, risk_allowance, VERSION
+from . import testnet_limits as L
 from .research import reward_risk
 from .testnet import DemoClient, Coordinator, Journal, Rejected, Uncertain, ORDER, ALGO, TERMINAL
 from .testnet_smoke import setup
@@ -22,7 +23,8 @@ from .testnet_smoke import setup
 SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
-        'risk_cap':'2','stop_model':VERSION,'notional_cap':'25','min_rr':'1','max_trades':3,
+        'risk_cap':str(L.RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
+        'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':3,
         'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
 def now_ms(): return int(time.time()*1000)
@@ -217,7 +219,7 @@ def reconcile(c,force_exit=False):
     reasons=[]
     allowed_risk=min(dec(p.get('risk_cap','.25')),dec(p.get('risk_assessment',{}).get('risk_budget',p.get('risk_cap','.25'))))
     if risk>allowed_risk:reasons.append('FILL_RISK_EXCEEDED')
-    if abs(amount)*avg>25:reasons.append('FILL_NOTIONAL_EXCEEDED')
+    if abs(amount)*avg>L.NOTIONAL_CAP:reasons.append('FILL_NOTIONAL_EXCEEDED')
     if abs(avg/dec(p['reference'])-1)>dec('.005'):reasons.append('FILL_DRIFT_EXCEEDED')
     if sign*(avg-stop)<=0:reasons.append('STOP_WRONG_SIDE')
     if reasons:
@@ -281,8 +283,8 @@ def risk_check(s,t):
         if s['lock']=='DAILY_LOSS': s['lock']=None
     equity=dec(s['equity'])
     s['high_water']=str(max(dec(s['high_water']),equity))
-    if equity<=dec(s['day_start'])*dec('.98') and not s['lock']: s['lock']='DAILY_LOSS'
-    if equity<=dec(s['high_water'])*dec('.92'): s['lock']='DRAWDOWN_REVIEW'
+    if equity<=dec(s['day_start'])*(1-L.DAILY_LOSS) and not s['lock']: s['lock']='DAILY_LOSS'
+    if equity<=dec(s['high_water'])*(1-L.MAX_DRAWDOWN): s['lock']='DRAWDOWN_REVIEW'
     if t-s.get('batch_started_ms',s['created_ms'])>=POLICY['duration_ms']: s['lock']=s['lock'] or 'PILOT_TIME_COMPLETE'
 
 def apply_order_risk(api,book,signal,reference,plan,rule,atr):
@@ -371,12 +373,12 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             cap=remaining/slots_left if slots_left else dec(0)
             if cap<=0:raise ValueError('PORTFOLIO_RISK_EXHAUSTED')
             s['risk_assessment']=risk_evidence
-            plan=buffered_size(signal,reference,min(dec(s['equity']),dec(50)),rule,CFG,risk_cap=cap)
+            plan=buffered_size(signal,reference,min(dec(s['equity']),L.VIRTUAL_EQUITY),rule,CFG,risk_cap=cap)
             assessment=reward_risk(dict(entry=plan.entry,qty=plan.qty,target=plan.target,
                 side=signal.side,entry_fee=plan.notional*CFG.fee_bps/10000,
                 funding_reserve=plan.notional*CFG.funding_reserve_bps/10000,modeled_risk=plan.risk),CFG)
             if dec(assessment['net_rr'])<1:raise ValueError('NET_RR_BELOW_1')
-            if plan.risk>cap or plan.notional>25:raise ValueError('CAP_EXCEEDED')
+            if plan.risk>cap or plan.notional>L.NOTIONAL_CAP:raise ValueError('CAP_EXCEEDED')
             if risk_aware:
                 plan,risk_details=apply_order_risk(api,book,signal,reference,plan,rule,
                     review['strategy_quality']['atr'])

@@ -23,3 +23,5 @@ class BatchTests(unittest.TestCase):
     b.s['equity']='48'
     risk_check(b.s,t+2000);self.assertEqual(b.s['lock'],'DAILY_LOSS')
    finally:b.close()
+
+from tests.conservative_limits import setUpModule, tearDownModule  # noqa: E402,F401

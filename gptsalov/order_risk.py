@@ -4,9 +4,10 @@ Risk is a modeled stop loss, not a guaranteed maximum loss. Margin stress is a
 conservative screen, not an exchange liquidation-price calculator.
 """
 from .core import dec, floor_step
+from . import testnet_limits as L
 
 VERSION = 'risk-aware-v1'
-MAX_LEVERAGE = 2
+MAX_LEVERAGE = L.MAX_LEVERAGE  # informational; plan_order reads L.MAX_LEVERAGE at call time
 FEE = dec('.0008')  # conservative taker allowance on EACH leg
 SLIP = dec('.001')  # adverse execution allowance on EACH leg
 FUNDING = dec('.001')
@@ -47,11 +48,11 @@ def risk_budget(state):
     if any(state.get(k) for k in ('lock', 'active', 'error')) or streak >= 3:
         raise ValueError('PORTFOLIO_BLOCKED')
     dd = max(dec(0), 1-equity/high)
-    daily_room = equity-start*dec('.98')
-    drawdown_room = equity-high*dec('.92')
+    daily_room = equity-start*(1-L.DAILY_LOSS)
+    drawdown_room = equity-high*(1-L.MAX_DRAWDOWN)
     # Never increase risk after losses. Respect remaining daily/DD loss room.
-    scale = dec('.5') if dd >= dec('.04') or streak >= 2 else dec(1)
-    budget = min(dec('.25'), min(equity, dec(50))*dec('.005')*scale,
+    scale = dec('.5') if dd >= 2*L.RISK_FRACTION or streak >= 2 else dec(1)
+    budget = min(L.RISK_CAP, min(equity, L.VIRTUAL_EQUITY)*L.RISK_FRACTION*scale,
                  daily_room, drawdown_room)
     if budget <= 0:
         raise ValueError('LOSS_BUDGET_EXHAUSTED')
@@ -117,15 +118,15 @@ def plan_order(*, symbol, side, reference, stop, target, atr, quantity_cap,
     if any(p % rules.tick or not rules.min_price <= p <= rules.max_price for p in (stop, target)):
         raise ValueError('PRICE_FILTER')
     budget = risk_budget(state)
-    equity = min(dec(state['equity']), dec(50))
+    equity = min(dec(state['equity']), L.VIRTUAL_EQUITY)
     entry, ceiling, unit_loss, unit_reward, unit_reserve = costs(reference, stop, target, side)
     rr = unit_reward/unit_loss
     if rr < MIN_RR:
         raise ValueError('NET_RR_BELOW_1_2')
     rows = bracket_rows(brackets, symbol)
-    cash = min(available_balance, equity*dec('.5'))
-    quantity = floor_step(min(quantity_cap, budget/unit_loss, dec(25)/ceiling,
-                              equity*dec('.5')/ceiling, rules.max_qty,
+    cash = min(available_balance, equity*L.CASH_FRACTION)
+    quantity = floor_step(min(quantity_cap, budget/unit_loss, L.NOTIONAL_CAP/ceiling,
+                              equity*L.CASH_FRACTION*L.MAX_LEVERAGE/ceiling, rules.max_qty,
                               rules.max_notional/ceiling), rules.step)
     # Stop + adverse mark-price stress; no claim of exact liquidation price.
     stress_distance = max(2*abs(entry-stop), 3*atr)
@@ -133,7 +134,7 @@ def plan_order(*, symbol, side, reference, stop, target, atr, quantity_cap,
     if stressed_mark <= 0:
         raise ValueError('STRESS_PRICE_INVALID')
     choices = []
-    for leverage in range(1, MAX_LEVERAGE+1):
+    for leverage in range(1, L.MAX_LEVERAGE+1):
         q = floor_step(min(quantity, cash/(ceiling/leverage+unit_reserve)), rules.step)
         if q <= 0 or q < rules.min_qty or q*reference*dec('.995') < rules.min_notional:
             continue
