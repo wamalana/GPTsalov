@@ -61,5 +61,26 @@ class TwoUsdtSetting(unittest.TestCase):
             self.assertGreater(modeled_fill_risk(p.qty, dec(100), p.stop), dec('1.5'))
 
 
+class PrepareAcceptsNewLimits(unittest.TestCase):
+    def test_real_wif_plan_from_2026_09_19_is_accepted(self):
+        # WIFUSDT short that failed in production: qty 129.2, notional ~52 > old 25 cap.
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from gptsalov.order_risk import VERSION
+        from gptsalov.testnet import Coordinator, Journal
+
+        class Api:
+            identity = 'acct'
+        plan = dict(environment='testnet', side='SELL', symbol='WIFUSDT', quantity='129.2', reference='0.4020',
+                    stop='0.4088', target='0.3884', risk_model=VERSION, leverage=1, purpose='MULTI_MARKET_TESTNET',
+                    stop_model='atr-structure-v1', risk_cap='2')
+        with TemporaryDirectory() as d, Journal(Path(d)/'t.db') as j:
+            Coordinator(j, Api()).prepare(plan)
+            self.assertEqual(Coordinator(j, Api()).plan()['symbol'], 'WIFUSDT')
+        with TemporaryDirectory() as d, Journal(Path(d)/'t.db') as j:
+            with self.assertRaisesRegex(ValueError, 'notional'):
+                Coordinator(j, Api()).prepare({**plan, 'quantity': '300'})  # ~120 > 100
+
+
 if __name__ == '__main__':
     unittest.main()

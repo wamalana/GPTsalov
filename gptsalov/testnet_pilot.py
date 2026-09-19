@@ -535,7 +535,16 @@ def tick(book,api,public):
         s['active']=active_slots(s)+[slot]
         book.save({'event':'SIGNAL_SELECTED','plan':p})
         with Journal(book.root/filename) as j:
-            c=Coordinator(j,api);c.prepare(p)
+            c=Coordinator(j,api)
+            try:
+                c.prepare(p)
+            except ValueError as exc:
+                # prepare() validates and writes the plan only; no order has been
+                # sent. Drop the empty slot instead of leaving a journal that fails
+                # every later tick (2026-09-19: 9h API_OR_STATE_REVIEW loop).
+                s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
+                book.save({'event':'PLAN_REJECTED','symbol':p['symbol'],'reason':str(exc)})
+                continue
             slot['phase']=reconcile(c)[0]
         book.save()
     s['phase']='ACTIVE_'+str(len(active_slots(s))) if active_slots(s) else 'WAIT_SIGNAL'
