@@ -146,6 +146,8 @@ def exit_once(c,entry,pos):
         reduceOnly='true',newClientOrderId=c.cid('exit')))
     return 'EXIT_RECONCILIATION'
 
+STOP_VISIBILITY_GRACE_MS=30000
+
 def verify_protection(c, name, opposite, price):
     """Persist sanitized GET evidence; ACK alone is never protection proof."""
     symbol=c.plan()['symbol']
@@ -162,6 +164,23 @@ def verify_protection(c, name, opposite, price):
         result['reason']='CONFIRMED' if matches and row.get('algoStatus')=='NEW' else 'MISMATCH'
     except Rejected as exc:
         result.update(reason='REJECTED',code=exc.code,retryable=exc.code==-2013)
+        if exc.code==-2013:
+            # Testnet read-after-write lag: the per-order GET can miss an order
+            # that was ACKed milliseconds ago. The open-orders list is a second,
+            # independent view; accept it only on an exact match.
+            try:
+                rows=[r for r in c.api.call('GET','/fapi/v1/openAlgoOrders',symbol=symbol)
+                      if r.get('clientAlgoId')==c.cid(name)]
+                if len(rows)==1:
+                    row=rows[0]
+                    result['observed']={k:row.get(k) for k in tuple(expected)+('algoStatus','closePosition','triggerPrice')}
+                    ok=(all(row.get(k)==v for k,v in expected.items() if k!='orderType' or 'orderType' in row)
+                        and row.get('closePosition') in (True,'true')
+                        and dec(row.get('triggerPrice','NaN'))==dec(price)
+                        and row.get('algoStatus','NEW')=='NEW')
+                    if ok: result.update(reason='CONFIRMED',via='openAlgoOrders')
+            except (Rejected,Uncertain,ValueError,TypeError,AttributeError,ArithmeticError):
+                pass
     except Uncertain:
         result.update(reason='UNAVAILABLE',retryable=True)
     except (ValueError,TypeError,AttributeError,ArithmeticError):
@@ -227,7 +246,16 @@ def reconcile(c,force_exit=False):
         force_exit=True
     if force_exit or c.j.get('exit'):
         return exit_once(c,entry,pos),None
-    if verify_protection(c,'stop',opposite,stop)['reason']!='CONFIRMED':
+    stop_check=verify_protection(c,'stop',opposite,stop)
+    if stop_check['reason']!='CONFIRMED':
+        # Same visibility grace the target already had: only for an ACKed stop
+        # POST whose lookup failed with a retryable code, for at most 30s.
+        # A rejected/unknown stop POST, a mismatch, or a lag beyond 30s still
+        # exits immediately.
+        ack=c.j.get('stop') or {}
+        if (stop_check['retryable'] and ack.get('phase')=='ACK'
+                and 0<=now_ms()-stop_check['first_unconfirmed_ms']<STOP_VISIBILITY_GRACE_MS):
+            return 'STOP_PENDING_VISIBILITY',None
         return exit_once(c,entry,pos),None
     c.once('target',ALGO,dict(symbol=symbol,side=opposite,positionSide='BOTH',
         algoType='CONDITIONAL',type='TAKE_PROFIT_MARKET',triggerPrice=p['target'],
