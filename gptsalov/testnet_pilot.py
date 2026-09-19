@@ -315,6 +315,10 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
     scan=read_scan(stamp=t,full=True)
     if scan.get('status')!='current' or not 0<=t-scan.get('started_ms',0)<=120000:
         s['last_selection']={'at_ms':t,'status':'WAIT_FRESH_SCAN'}
+        # The scanner finishes ~55-75s after the candle close, but only 120s of
+        # the candle are usable. Do not spend the 60s account-check gate on a
+        # scan that is not ready yet: retry on the next 10s tick instead.
+        s['last_scan_ms']=0
         return [] if limit>1 else None
     candidates=[r for r in scan.get('rows',[]) if r.get('market')=='USD-M'
                 and r.get('quote')=='USDT' and r.get('contract')=='PERPETUAL'
