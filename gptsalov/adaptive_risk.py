@@ -1,9 +1,10 @@
 """Testnet experiment: structural stops and evidence-gated risk ceilings."""
 from dataclasses import replace
 from .core import dec
+from . import testnet_limits as L
 
 VERSION='atr-structure-v1'
-MAX_RISK=dec('.25')  # escalation disabled; see risk_allowance
+MAX_RISK=L.RISK_CAP  # fixed ceiling; performance-based escalation stays disabled
 
 def adaptive_stop(signal,bars):
     if signal is None or len(bars)<15: raise ValueError('STOP_INPUT')
@@ -33,7 +34,7 @@ def risk_allowance(state):
     statistics for review; they no longer change the cap.
     """
     samples=state.get('adaptive_results',[])
-    cap=dec('.25');reason='PROMOTION_DISABLED_PENDING_VALIDATED_EDGE'
+    cap=L.RISK_CAP;reason='FIXED_TESTNET_CAP_NO_PERFORMANCE_PROMOTION'
     report={'closed_samples':len(samples),'version':VERSION}
     if len(samples)>=60:
         new=samples[-30:]
@@ -45,9 +46,9 @@ def risk_allowance(state):
             profit_factor=str(gains/losses) if losses else None)
     equity=dec(state['equity'])
     # Existing account-level loss limits take priority over the ceiling.
-    daily=max(dec(0),equity-dec(state['day_start'])*dec('.98'))
-    drawdown=max(dec(0),equity-dec(state['high_water'])*dec('.92'))
-    # 0.5% of equity per trade: the same rule core.Config enforces for paper.
-    allowed=min(cap,equity*dec('.005'),daily,drawdown)
+    daily=max(dec(0),equity-dec(state['day_start'])*(1-L.DAILY_LOSS))
+    drawdown=max(dec(0),equity-dec(state['high_water'])*(1-L.MAX_DRAWDOWN))
+    # Fixed fraction of virtual equity (testnet_limits); no win-rate promotion.
+    allowed=min(cap,min(equity,L.VIRTUAL_EQUITY)*L.RISK_FRACTION,daily,drawdown)
     report.update(reason=reason,performance_cap=str(cap),effective_cap=str(allowed),max_cap=str(cap))
     return allowed,report

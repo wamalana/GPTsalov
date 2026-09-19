@@ -29,7 +29,7 @@ class AdaptiveTests(unittest.TestCase):
   old=[dict(net='1' if i<10 else '-1',risk='1') for i in range(30)]
   new=[dict(net='2' if i<20 else '-1',risk='1') for i in range(30)]
   s=self.state(old+new);cap,r=risk_allowance(s);self.assertEqual(cap,dec('.25'))
-  self.assertEqual(r['reason'],'PROMOTION_DISABLED_PENDING_VALIDATED_EDGE')
+  self.assertEqual(r['reason'],'FIXED_TESTNET_CAP_NO_PERFORMANCE_PROMOTION')
   s['equity']='98.1';cap,_=risk_allowance(s);self.assertEqual(cap,dec('.1'))
   s['equity']='97';cap,_=risk_allowance(s);self.assertEqual(cap,0)
   s=self.state([]);s['equity']='40';s['day_start']='40';s['high_water']='40'
@@ -47,3 +47,5 @@ class AdaptiveTests(unittest.TestCase):
      self.assertLessEqual(p.qty*price,25)
   with self.assertRaisesRegex(ValueError,'INVALID_TESTNET'):
    buffered_size(sig,dec(100),dec(50),rule,cfg,risk_cap=dec(6))
+
+from tests.conservative_limits import setUpModule, tearDownModule  # noqa: E402,F401

@@ -3,6 +3,7 @@
 Development component, deliberately not wired to paper services or a trading CLI.
 Use a dedicated empty one-way Testnet account. Never use production credentials.
 """
+from . import testnet_limits as _limits
 import hashlib
 import hmac
 import json
@@ -158,7 +159,7 @@ class Coordinator:
         if 'risk_model' in p:
             from .order_risk import VERSION, MAX_LEVERAGE
             if (p['risk_model'] != VERSION or type(p.get('leverage')) is not int
-                    or not 1 <= p['leverage'] <= MAX_LEVERAGE):
+                    or not 1 <= p['leverage'] <= _limits.MAX_LEVERAGE):
                 raise ValueError('Invalid risk model/leverage')
             if p.get('purpose') not in ('STRATEGY_PILOT','MULTI_MARKET_TESTNET'):
                 raise ValueError('Dynamic leverage requires strategy pilot')
@@ -179,7 +180,7 @@ class Coordinator:
         if p.get('stop_model')=='atr-structure-v1' and p.get('purpose')=='MULTI_MARKET_TESTNET':
             cap=dec(p.get('risk_cap','0'))
             if not 0<cap<=dec('2'): raise ValueError('Invalid adaptive Testnet risk cap')
-            if q*e>25: raise ValueError('Adaptive notional cap exceeded')
+            if q*e>_limits.NOTIONAL_CAP: raise ValueError('Adaptive notional cap exceeded')
         if modeled>cap:
             raise ValueError('Modeled risk exceeds 0.50 USDT')
         old=self.j.db.execute('SELECT data FROM experiment WHERE id=1').fetchone()

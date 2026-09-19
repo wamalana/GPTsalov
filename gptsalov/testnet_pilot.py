@@ -15,6 +15,7 @@ from .core import Config, Rules, dec, encode, size, closed_bars, strategy, BAR_M
 from .market import BinancePublic
 from .execution_sizing import buffered_size, modeled_fill_risk
 from .adaptive_risk import adaptive_stop, risk_allowance, VERSION
+from . import testnet_limits as L
 from .research import reward_risk
 from .testnet import DemoClient, Coordinator, Journal, Rejected, Uncertain, ORDER, ALGO, TERMINAL
 from .testnet_smoke import setup
@@ -22,7 +23,8 @@ from .testnet_smoke import setup
 SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
-        'risk_cap':'2','stop_model':VERSION,'notional_cap':'25','min_rr':'1','max_trades':3,
+        'risk_cap':str(L.RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
+        'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':3,
         'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
 def now_ms(): return int(time.time()*1000)
@@ -144,6 +146,8 @@ def exit_once(c,entry,pos):
         reduceOnly='true',newClientOrderId=c.cid('exit')))
     return 'EXIT_RECONCILIATION'
 
+STOP_VISIBILITY_GRACE_MS=30000
+
 def verify_protection(c, name, opposite, price):
     """Persist sanitized GET evidence; ACK alone is never protection proof."""
     symbol=c.plan()['symbol']
@@ -160,6 +164,23 @@ def verify_protection(c, name, opposite, price):
         result['reason']='CONFIRMED' if matches and row.get('algoStatus')=='NEW' else 'MISMATCH'
     except Rejected as exc:
         result.update(reason='REJECTED',code=exc.code,retryable=exc.code==-2013)
+        if exc.code==-2013:
+            # Testnet read-after-write lag: the per-order GET can miss an order
+            # that was ACKed milliseconds ago. The open-orders list is a second,
+            # independent view; accept it only on an exact match.
+            try:
+                rows=[r for r in c.api.call('GET','/fapi/v1/openAlgoOrders',symbol=symbol)
+                      if r.get('clientAlgoId')==c.cid(name)]
+                if len(rows)==1:
+                    row=rows[0]
+                    result['observed']={k:row.get(k) for k in tuple(expected)+('algoStatus','closePosition','triggerPrice')}
+                    ok=(all(row.get(k)==v for k,v in expected.items() if k!='orderType' or 'orderType' in row)
+                        and row.get('closePosition') in (True,'true')
+                        and dec(row.get('triggerPrice','NaN'))==dec(price)
+                        and row.get('algoStatus','NEW')=='NEW')
+                    if ok: result.update(reason='CONFIRMED',via='openAlgoOrders')
+            except (Rejected,Uncertain,ValueError,TypeError,AttributeError,ArithmeticError):
+                pass
     except Uncertain:
         result.update(reason='UNAVAILABLE',retryable=True)
     except (ValueError,TypeError,AttributeError,ArithmeticError):
@@ -217,7 +238,7 @@ def reconcile(c,force_exit=False):
     reasons=[]
     allowed_risk=min(dec(p.get('risk_cap','.25')),dec(p.get('risk_assessment',{}).get('risk_budget',p.get('risk_cap','.25'))))
     if risk>allowed_risk:reasons.append('FILL_RISK_EXCEEDED')
-    if abs(amount)*avg>25:reasons.append('FILL_NOTIONAL_EXCEEDED')
+    if abs(amount)*avg>L.NOTIONAL_CAP:reasons.append('FILL_NOTIONAL_EXCEEDED')
     if abs(avg/dec(p['reference'])-1)>dec('.005'):reasons.append('FILL_DRIFT_EXCEEDED')
     if sign*(avg-stop)<=0:reasons.append('STOP_WRONG_SIDE')
     if reasons:
@@ -225,7 +246,16 @@ def reconcile(c,force_exit=False):
         force_exit=True
     if force_exit or c.j.get('exit'):
         return exit_once(c,entry,pos),None
-    if verify_protection(c,'stop',opposite,stop)['reason']!='CONFIRMED':
+    stop_check=verify_protection(c,'stop',opposite,stop)
+    if stop_check['reason']!='CONFIRMED':
+        # Same visibility grace the target already had: only for an ACKed stop
+        # POST whose lookup failed with a retryable code, for at most 30s.
+        # A rejected/unknown stop POST, a mismatch, or a lag beyond 30s still
+        # exits immediately.
+        ack=c.j.get('stop') or {}
+        if (stop_check['retryable'] and ack.get('phase')=='ACK'
+                and 0<=now_ms()-stop_check['first_unconfirmed_ms']<STOP_VISIBILITY_GRACE_MS):
+            return 'STOP_PENDING_VISIBILITY',None
         return exit_once(c,entry,pos),None
     c.once('target',ALGO,dict(symbol=symbol,side=opposite,positionSide='BOTH',
         algoType='CONDITIONAL',type='TAKE_PROFIT_MARKET',triggerPrice=p['target'],
@@ -281,8 +311,8 @@ def risk_check(s,t):
         if s['lock']=='DAILY_LOSS': s['lock']=None
     equity=dec(s['equity'])
     s['high_water']=str(max(dec(s['high_water']),equity))
-    if equity<=dec(s['day_start'])*dec('.98') and not s['lock']: s['lock']='DAILY_LOSS'
-    if equity<=dec(s['high_water'])*dec('.92'): s['lock']='DRAWDOWN_REVIEW'
+    if equity<=dec(s['day_start'])*(1-L.DAILY_LOSS) and not s['lock']: s['lock']='DAILY_LOSS'
+    if equity<=dec(s['high_water'])*(1-L.MAX_DRAWDOWN): s['lock']='DRAWDOWN_REVIEW'
     if t-s.get('batch_started_ms',s['created_ms'])>=POLICY['duration_ms']: s['lock']=s['lock'] or 'PILOT_TIME_COMPLETE'
 
 def apply_order_risk(api,book,signal,reference,plan,rule,atr):
@@ -313,6 +343,10 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
     scan=read_scan(stamp=t,full=True)
     if scan.get('status')!='current' or not 0<=t-scan.get('started_ms',0)<=120000:
         s['last_selection']={'at_ms':t,'status':'WAIT_FRESH_SCAN'}
+        # The scanner finishes ~55-75s after the candle close, but only 120s of
+        # the candle are usable. Do not spend the 60s account-check gate on a
+        # scan that is not ready yet: retry on the next 10s tick instead.
+        s['last_scan_ms']=0
         return [] if limit>1 else None
     candidates=[r for r in scan.get('rows',[]) if r.get('market')=='USD-M'
                 and r.get('quote')=='USDT' and r.get('contract')=='PERPETUAL'
@@ -371,12 +405,12 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             cap=remaining/slots_left if slots_left else dec(0)
             if cap<=0:raise ValueError('PORTFOLIO_RISK_EXHAUSTED')
             s['risk_assessment']=risk_evidence
-            plan=buffered_size(signal,reference,min(dec(s['equity']),dec(50)),rule,CFG,risk_cap=cap)
+            plan=buffered_size(signal,reference,min(dec(s['equity']),L.VIRTUAL_EQUITY),rule,CFG,risk_cap=cap)
             assessment=reward_risk(dict(entry=plan.entry,qty=plan.qty,target=plan.target,
                 side=signal.side,entry_fee=plan.notional*CFG.fee_bps/10000,
                 funding_reserve=plan.notional*CFG.funding_reserve_bps/10000,modeled_risk=plan.risk),CFG)
             if dec(assessment['net_rr'])<1:raise ValueError('NET_RR_BELOW_1')
-            if plan.risk>cap or plan.notional>25:raise ValueError('CAP_EXCEEDED')
+            if plan.risk>cap or plan.notional>L.NOTIONAL_CAP:raise ValueError('CAP_EXCEEDED')
             if risk_aware:
                 plan,risk_details=apply_order_risk(api,book,signal,reference,plan,rule,
                     review['strategy_quality']['atr'])
@@ -529,7 +563,16 @@ def tick(book,api,public):
         s['active']=active_slots(s)+[slot]
         book.save({'event':'SIGNAL_SELECTED','plan':p})
         with Journal(book.root/filename) as j:
-            c=Coordinator(j,api);c.prepare(p)
+            c=Coordinator(j,api)
+            try:
+                c.prepare(p)
+            except ValueError as exc:
+                # prepare() validates and writes the plan only; no order has been
+                # sent. Drop the empty slot instead of leaving a journal that fails
+                # every later tick (2026-09-19: 9h API_OR_STATE_REVIEW loop).
+                s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
+                book.save({'event':'PLAN_REJECTED','symbol':p['symbol'],'reason':str(exc)})
+                continue
             slot['phase']=reconcile(c)[0]
         book.save()
     s['phase']='ACTIVE_'+str(len(active_slots(s))) if active_slots(s) else 'WAIT_SIGNAL'
