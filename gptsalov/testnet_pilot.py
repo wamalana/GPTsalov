@@ -14,7 +14,7 @@ import time
 from .core import Config, Rules, dec, encode, size, closed_bars, strategy, BAR_MS
 from .market import BinancePublic
 from .execution_sizing import buffered_size, modeled_fill_risk
-from .adaptive_risk import adaptive_stop, risk_allowance, VERSION
+from .adaptive_risk import adaptive_stop, portfolio_room, risk_allowance, VERSION
 from . import testnet_limits as L
 from .research import reward_risk
 from .testnet import DemoClient, Coordinator, Journal, Rejected, Uncertain, ORDER, ALGO, TERMINAL
@@ -23,7 +23,7 @@ from .testnet_smoke import setup
 SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
-        'risk_cap':str(L.RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
+        'risk_cap':str(L.RISK_CAP),'portfolio_risk_cap':str(L.PORTFOLIO_RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
         'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':3,
         'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
@@ -408,10 +408,12 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             rule=Rules.from_exchange(demo[symbol])
             reference=dec(api.call('GET','/fapi/v1/ticker/price',symbol=symbol)['price'])
             signal,stop_evidence=adaptive_stop(signal,bars)
-            total_cap,risk_evidence=risk_allowance(s)
-            remaining=max(dec(0),total_cap-risk_reserved-sum((dec(x['modeled_risk']) for x in selected),dec(0)))
-            slots_left=limit-len(selected)
-            cap=remaining/slots_left if slots_left else dec(0)
+            trade_cap,risk_evidence=risk_allowance(s)
+            # Each trade may use the full per-trade cap; only the portfolio total
+            # is shared (previously the per-trade cap was split by free slots,
+            # so the first 2 USDT trade was sized at 0.67 USDT).
+            remaining=max(dec(0),portfolio_room(s)-risk_reserved-sum((dec(x['modeled_risk']) for x in selected),dec(0)))
+            cap=min(trade_cap,remaining)
             if cap<=0:raise ValueError('PORTFOLIO_RISK_EXHAUSTED')
             s['risk_assessment']=risk_evidence
             plan=buffered_size(signal,reference,min(dec(s['equity']),L.VIRTUAL_EQUITY),rule,CFG,risk_cap=cap)

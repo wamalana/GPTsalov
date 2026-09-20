@@ -52,3 +52,16 @@ def risk_allowance(state):
     allowed=min(cap,min(equity,L.VIRTUAL_EQUITY)*L.RISK_FRACTION,daily,drawdown)
     report.update(reason=reason,performance_cap=str(cap),effective_cap=str(allowed),max_cap=str(cap))
     return allowed,report
+
+
+def portfolio_room(state):
+    """Total modeled risk allowed across all open trades (before subtracting them).
+
+    Per-trade cap comes from risk_allowance(); this bounds the sum so two open
+    trades can each carry the full per-trade cap without breaching the daily or
+    drawdown room (owner decision 2026-09-20: 2 USDT/trade, 4 USDT total).
+    """
+    equity=dec(state['equity'])
+    daily=max(dec(0),equity-dec(state['day_start'])*(1-L.DAILY_LOSS))
+    drawdown=max(dec(0),equity-dec(state['high_water'])*(1-L.MAX_DRAWDOWN))
+    return min(L.PORTFOLIO_RISK_CAP,daily,drawdown)
