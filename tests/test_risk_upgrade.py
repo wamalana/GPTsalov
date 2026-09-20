@@ -89,3 +89,5 @@ class UpgradeTests(unittest.TestCase):
         self.assertTrue(gate.call_args.kwargs['risk_aware'])
         stop.assert_called_once()
         self.assertFalse(any(m=='POST' for m,_,_ in api.calls))
+
+from tests.conservative_limits import setUpModule, tearDownModule  # noqa: E402,F401
