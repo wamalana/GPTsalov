@@ -198,7 +198,16 @@ def reconcile(c,force_exit=False):
     symbol=c.plan()['symbol']
     p=c.plan()
     if c.j.get('entry') is None:
-        c.preflight(p)
+        try:
+            c.preflight(p)
+        except ValueError as exc:
+            # No entry POST exists yet ('entry' is journaled before sending), so a
+            # failed pre-entry check is a skipped trade, not an uncertain account.
+            # 2026-09-19 UNIUSDT: raising here locked the pilot for 14h.
+            reason=str(exc)[:200]
+            if c.j.get('aborted') is None:
+                c.j.put('aborted',{'at_ms':now_ms(),'reason':reason})
+            return 'ABORTED_BEFORE_ENTRY',reason
         c.once('entry',ORDER,dict(symbol=symbol,side=p['side'],positionSide='BOTH',
             type='MARKET',quantity=p['quantity'],newClientOrderId=c.cid('entry')))
     try:
@@ -513,6 +522,9 @@ def tick(book,api,public):
                     s.setdefault('adaptive_results',[]).append({'net':str(net),'risk':plan['modeled_risk']})
                 settle(book,net,details,slot)
                 risk_check(s,t)
+            elif phase=='ABORTED_BEFORE_ENTRY':
+                s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
+                book.save({'event':'PLAN_ABORTED','symbol':symbol,'reason':data})
             elif phase=='NO_FILL':
                 s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
                 s['lock']='NO_FILL_REVIEW'
@@ -573,7 +585,12 @@ def tick(book,api,public):
                 s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
                 book.save({'event':'PLAN_REJECTED','symbol':p['symbol'],'reason':str(exc)})
                 continue
-            slot['phase']=reconcile(c)[0]
+            phase,data=reconcile(c)
+            slot['phase']=phase
+            if phase=='ABORTED_BEFORE_ENTRY':
+                s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
+                book.save({'event':'PLAN_ABORTED','symbol':p['symbol'],'reason':data})
+                continue
         book.save()
     s['phase']='ACTIVE_'+str(len(active_slots(s))) if active_slots(s) else 'WAIT_SIGNAL'
     s['error']=None;book.save()
@@ -627,7 +644,7 @@ def main():
                 if isinstance(exc,Rejected):book.s['error']+=':'+str(exc.code)
                 book.s['lock']=book.s['lock'] or 'API_OR_STATE_REVIEW'
                 book.s['phase']='REVIEW'
-                book.save({'event':'ERROR','type':book.s['error']})
+                book.save({'event':'ERROR','type':book.s['error'],'message':str(exc)[:300]})
                 delay=60
             print(encode({k:book.s[k] for k in ('phase','equity','closed_trades','lock','error','last_check_ms')}),flush=True)
             time.sleep(delay)

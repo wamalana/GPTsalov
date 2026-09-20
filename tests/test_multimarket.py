@@ -60,7 +60,9 @@ class MultiMarketTests(unittest.TestCase):
             with Journal(Path(d)/'trade.db') as j:
                 c=Coordinator(j,api)
                 c.prepare({**PLAN,'symbol':'SOLUSDT','purpose':'MULTI_MARKET_TESTNET','signal_close_ms':1})
-                with self.assertRaisesRegex(ValueError,'expired'):p.reconcile(c)
+                phase,reason=p.reconcile(c)  # skipped trade, not a pilot lock
+                self.assertEqual(phase,'ABORTED_BEFORE_ENTRY')
+                self.assertIn('expired',reason)
                 self.assertFalse(any(method=='POST' for method,_,_ in api.requests))
 
     def test_selection_skips_unsupported_and_unsizeable(self):
