@@ -24,7 +24,7 @@ def adaptive_stop(signal,bars):
         'distance':str(distance),'distance_pct':str(distance/ref*100)}
 
 def risk_allowance(state):
-    """Fixed 0.25 USDT ceiling. Performance-based promotion is DISABLED.
+    """Fixed Testnet ceiling from testnet_limits; performance promotion is disabled.
 
     The former 30-trade win-rate gate passed by chance 4-8% of the time on a
     strategy with negative expectancy (research/backtest-2026-09-18), and was

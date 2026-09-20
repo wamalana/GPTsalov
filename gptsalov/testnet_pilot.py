@@ -369,7 +369,7 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
     selection={'at_ms':t,'candle_close_ms':stamp,'status':'NO_ELIGIBLE_SIGNAL',
                'candidates':len(candidates),'rejected':{}}
     s['last_selection']=selection;book.save()
-    if not candidates:return [] if limit>1 else None
+    if not candidates:return []
     candidates.sort(key=lambda r:(-r.get('score',0),-r.get('volume',0),r['symbol']))
     demo_rows=api.call('GET','/fapi/v1/exchangeInfo')['symbols']
     demo={r['symbol']:r for r in demo_rows if r.get('status')=='TRADING'
@@ -400,6 +400,10 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
         if not bars or bars[-1].close_ms!=stamp:
             selection['rejected'][symbol]='STALE_CANDLES';continue
         signal=strategy(symbol,bars)
+        # Enforce using the actual signal too: scanner direction can be absent
+        # or stale and must never bypass the one-position-per-side rule.
+        if signal is not None and ('LONG' if signal.side==1 else 'SHORT') in sides:
+            selection['rejected'][symbol]='SAME_DIRECTION_OPEN';continue
         risk_aware=bool(s.get('policy',{}).get('risk_model'))
         allowed,review=evaluate(bars,s,now_ms(),signal,symbol=symbol,risk_aware=risk_aware)
         review['symbol']=symbol
@@ -500,6 +504,10 @@ def candidate(api,public,book):
 
 def tick(book,api,public):
     s=book.s;t=now_ms()
+    # Report the effective limit without changing the identity of live ledgers.
+    s['position_limits']={'configured_slots':POLICY['max_positions'],
+                          'effective_max_positions':min(2,POLICY['max_positions']),
+                          'max_per_direction':1}
     s['last_check_ms']=t
     slots=active_slots(s)
     s['active']=slots
@@ -569,6 +577,8 @@ def tick(book,api,public):
     busy_sides={x['side'] for x in slots if x.get('side')}
     try:
         plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
+        if not isinstance(plans,list) or any(not isinstance(plan,dict) for plan in plans):
+            raise TypeError('Candidate selection must return a list of plans')
     except Exception as exc:
         s['error']=type(exc).__name__
         s['lock']=s['lock'] or 'SELECTION_REVIEW'

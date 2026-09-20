@@ -121,7 +121,7 @@ def run(path=DB,pilot=PILOT,client=None):
     data={'schema':1,'status':'running','started_ms':clock(),'markets':{},'rows':[],
           'scope':'All exchange-listed USD-M and COIN-M contracts; deep analysis after liquidity filters',
           'ranking':'heuristic_not_probability','execution_enabled':False,
-          'execution_scope':'Existing ETHUSDT Testnet pilot only',
+          'execution_scope':'Read-only scanner; separate USDT-perpetual Testnet pilot executes',
           'filters':{'min_volume_24h':MIN_VOLUME,'max_spread_bps':MAX_SPREAD,'min_book_depth':MIN_DEPTH,'min_age_days':30}}
     for market in MARKETS:
         data['markets'][market]={'status':'pending'}
