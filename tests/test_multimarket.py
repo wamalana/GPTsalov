@@ -84,7 +84,7 @@ class MultiMarketTests(unittest.TestCase):
             if sig.symbol=='BIGUSDT':raise ValueError('BELOW_EXCHANGE_MINIMUM')
             return plan
         with patch.object(p,'now_ms',return_value=t),patch('gptsalov.market_scanner.read',return_value={'status':'current','started_ms':t-10000,'rows':rows}),patch('gptsalov.market_scanner.classify',return_value={'status':'pending'}),patch.object(p,'closed_bars',return_value=[SimpleNamespace(close_ms=stamp)]),patch.object(p,'strategy',side_effect=signal),patch('gptsalov.multiagent_gate.evaluate',return_value=(True,{})),patch.object(p.Rules,'from_exchange',return_value=None),patch.object(p,'adaptive_stop',side_effect=lambda sig,bars:(sig,{'version':'atr-structure-v1'})),patch.object(p,'buffered_size',side_effect=sizing),patch.object(p,'reward_risk',return_value={'net_rr':'2'}):
-            result=p.multi_candidate(api,public,book)
+            result=(p.multi_candidate(api,public,book) or [None])[0]
         self.assertEqual(result['symbol'],'SOLUSDT')
         self.assertEqual(book.s['last_selection']['rejected'],{'MISSINGUSDT':'NOT_ON_USDT_TESTNET','BIGUSDT':'BELOW_EXCHANGE_MINIMUM'})
 
@@ -112,5 +112,5 @@ class MultiMarketTests(unittest.TestCase):
         t=1789602350000
         book=SimpleNamespace(s={'seen_ms':None},save=lambda *a:None)
         with patch.object(p,'now_ms',return_value=t),patch('gptsalov.market_scanner.read',return_value={'status':'running'}):
-            self.assertIsNone(p.multi_candidate(None,None,book))
+            self.assertEqual(p.multi_candidate(None,None,book),[])
         self.assertIsNone(book.s['seen_ms'])

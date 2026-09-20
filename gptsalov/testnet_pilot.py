@@ -147,6 +147,10 @@ def exit_once(c,entry,pos):
     return 'EXIT_RECONCILIATION'
 
 STOP_VISIBILITY_GRACE_MS=30000
+# Locks that stop new trades but never market-close an open, protected one: the
+# fault is in selecting the next trade, not in the position or the account.
+# 2026-09-20: a TypeError while scanning force-exited a healthy NEARUSDT trade.
+NON_FORCING_LOCKS=('SELECTION_REVIEW',)
 
 def verify_protection(c, name, opposite, price):
     """Persist sanitized GET evidence; ACK alone is never protection proof."""
@@ -347,8 +351,8 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
     s=book.s
     if type(limit) is not int or not 1<=limit<=POLICY['max_positions']:
         raise ValueError('INVALID_SLOT_LIMIT')
-    if s.get('seen_ms')==stamp:return [] if limit>1 else None
-    if not 0<=t-stamp<=CFG.max_data_age_ms:return [] if limit>1 else None
+    if s.get('seen_ms')==stamp:return []
+    if not 0<=t-stamp<=CFG.max_data_age_ms:return []
     scan=read_scan(stamp=t,full=True)
     if scan.get('status')!='current' or not 0<=t-scan.get('started_ms',0)<=120000:
         s['last_selection']={'at_ms':t,'status':'WAIT_FRESH_SCAN'}
@@ -356,7 +360,7 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
         # the candle are usable. Do not spend the 60s account-check gate on a
         # scan that is not ready yet: retry on the next 10s tick instead.
         s['last_scan_ms']=0
-        return [] if limit>1 else None
+        return []
     candidates=[r for r in scan.get('rows',[]) if r.get('market')=='USD-M'
                 and r.get('quote')=='USDT' and r.get('contract')=='PERPETUAL'
                 and r.get('decision')=='CANDIDATE' and r.get('candle_close_ms')==stamp
@@ -444,12 +448,14 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             selection.update(symbol=selected[0]['symbol'],side=selected[0]['side'],
                              modeled_risk=selected[0]['modeled_risk'])
     book.save({'event':'MARKET_SELECTION','selection':selection})
-    if limit==1:return selected[0] if selected else None
+    # Always a list: with one free slot the caller used to get a bare dict or
+    # None and iterating it raised TypeError (2026-09-20 NEARUSDT).
     return selected
 
 def candidate(api,public,book):
     if book.s['policy'].get('execution_universe')=='ALL_USDT_PERPETUAL':
-        return multi_candidate(api,public,book)
+        plans=multi_candidate(api,public,book)
+        return plans[0] if plans else None
     t=now_ms()
     bars=closed_bars(public.get('/fapi/v1/klines',symbol=SYMBOL,interval='15m',limit=200),t)
     stamp=t//BAR_MS*BAR_MS-1
@@ -512,7 +518,8 @@ def tick(book,api,public):
             c=Coordinator(j,api)
             symbol=c.plan()['symbol']
             if slot.get('symbol',symbol)!=symbol:raise ValueError('Active symbol mismatch')
-            force=bool(s['lock']) or t-slot['started_ms']>=POLICY['hold_ms']
+            force=(bool(s['lock']) and s['lock'] not in NON_FORCING_LOCKS
+                   or t-slot['started_ms']>=POLICY['hold_ms'])
             phase,data=reconcile(c,force_exit=force)
             slot['phase']=phase
             if phase=='CLOSED':
@@ -560,7 +567,14 @@ def tick(book,api,public):
         s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
     reserved=sum((dec(x.get('modeled_risk','0')) for x in slots),dec(0))
     busy_sides={x['side'] for x in slots if x.get('side')}
-    plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
+    try:
+        plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
+    except Exception as exc:
+        s['error']=type(exc).__name__
+        s['lock']=s['lock'] or 'SELECTION_REVIEW'
+        s['phase']='LOCKED'
+        book.save({'event':'SELECTION_FAILED','type':s['error'],'message':str(exc)[:300]})
+        return
     for p in plans:
         if now_ms()-p['signal_observed_ms']>60000:
             book.save('STALE_PLAN_SKIPPED');break
