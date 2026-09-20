@@ -88,7 +88,7 @@ class MultiMarketTests(unittest.TestCase):
         self.assertEqual(result['symbol'],'SOLUSDT')
         self.assertEqual(book.s['last_selection']['rejected'],{'MISSINGUSDT':'NOT_ON_USDT_TESTNET','BIGUSDT':'BELOW_EXCHANGE_MINIMUM'})
 
-    def test_selection_returns_ranked_three_slot_batch(self):
+    def test_missing_scanner_direction_cannot_bypass_one_per_side(self):
         t=(1789602300000//BAR_MS)*BAR_MS+50000;stamp=t//BAR_MS*BAR_MS-1
         rows=[dict(symbol=sym,market='USD-M',quote='USDT',contract='PERPETUAL',
                    decision='CANDIDATE',candle_close_ms=stamp,observed_ms=t,score=score,volume=100000000)
@@ -106,7 +106,9 @@ class MultiMarketTests(unittest.TestCase):
         plan=SimpleNamespace(entry=dec(100),qty=dec('.1'),target=dec(103),stop=dec(99),notional=dec(10),risk=dec('.05'))
         with patch.object(p,'now_ms',return_value=t),patch('gptsalov.market_scanner.read',return_value={'status':'current','started_ms':t-10000,'rows':rows}),patch('gptsalov.market_scanner.classify',return_value={'status':'pending'}),patch.object(p,'closed_bars',return_value=[SimpleNamespace(close_ms=stamp)]),patch.object(p,'strategy',side_effect=signal),patch('gptsalov.multiagent_gate.evaluate',return_value=(True,{})),patch.object(p.Rules,'from_exchange',return_value=None),patch.object(p,'adaptive_stop',side_effect=lambda sig,bars:(sig,{'version':'atr-structure-v1'})),patch.object(p,'buffered_size',return_value=plan),patch.object(p,'reward_risk',return_value={'net_rr':'2'}):
             result=p.multi_candidate(api,public,book,limit=3)
-        self.assertEqual([x['symbol'] for x in result],['SOLUSDT','BNBUSDT','XRPUSDT'])
+        self.assertEqual([x['symbol'] for x in result],['SOLUSDT'])
+        self.assertEqual(book.s['last_selection']['rejected'],
+                         {'BNBUSDT':'SAME_DIRECTION_OPEN','XRPUSDT':'SAME_DIRECTION_OPEN'})
 
     def test_incomplete_scan_never_consumes_candle(self):
         t=1789602350000

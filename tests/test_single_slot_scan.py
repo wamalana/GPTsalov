@@ -11,6 +11,17 @@ from gptsalov import testnet_pilot as p
 
 
 class SingleSlotReturnsAList(unittest.TestCase):
+    def test_fresh_scan_without_eligible_candidates_returns_list(self):
+        t=p.BAR_MS+60000
+        for limit in (1,2,3):
+            with self.subTest(limit=limit):
+                book=SimpleNamespace(s={'seen_ms':None},save=lambda *a:None)
+                with patch.object(p,'now_ms',return_value=t), patch(
+                        'gptsalov.market_scanner.read',return_value={
+                            'status':'current','started_ms':t-10000,'rows':[]}):
+                    self.assertEqual(p.multi_candidate(None,None,book,limit=limit),[])
+                self.assertEqual(book.s['last_selection']['status'],'NO_ELIGIBLE_SIGNAL')
+
     def test_limit_one_returns_a_list_not_a_bare_plan(self):
         book=SimpleNamespace(s={'seen_ms':None,'equity':'50','day_start':'50','high_water':'50'},
                              save=lambda *a: None)
@@ -49,6 +60,14 @@ class ScanFaultKeepsTheOpenTrade(unittest.TestCase):
             self.assertNotIn(lock,p.NON_FORCING_LOCKS)
 
     def test_scan_exception_locks_without_touching_the_position(self):
+        self.check_selection_fault(TypeError('selection failed'))
+
+    def test_invalid_selection_result_does_not_force_close_open_trade(self):
+        for result in (None, {'symbol':'ETHUSDT'}, [None]):
+            with self.subTest(result=result):
+                self.check_selection_fault(result)
+
+    def check_selection_fault(self, result):
         events=[]
         s={'active':[{'file':'trade-1.db','symbol':'ETHUSDT','side':'LONG','started_ms':0,
                       'modeled_risk':'1.8','phase':'PROTECTED'}],
@@ -64,13 +83,15 @@ class ScanFaultKeepsTheOpenTrade(unittest.TestCase):
              patch.object(p,'reconcile',return_value=('PROTECTED',None)), \
              patch.object(p,'Journal'),patch.object(p,'Coordinator') as coordinator, \
              patch.object(p,'risk_allowance',return_value=(dec(2),{})), \
-             patch.object(p,'multi_candidate',side_effect=TypeError("'NoneType' object is not iterable")):
+             patch.object(p,'multi_candidate',**({'side_effect':result}
+                          if isinstance(result,Exception) else {'return_value':result})):
             coordinator.return_value.plan.return_value={'symbol':'ETHUSDT'}
             p.tick(book,api,SimpleNamespace())
         self.assertEqual(s['lock'],'SELECTION_REVIEW')
         self.assertEqual(s['error'],'TypeError')
         self.assertEqual(len(s['active']),1)  # the protected trade is untouched
         self.assertIn('SELECTION_FAILED',[e.get('event') for e in events if isinstance(e,dict)])
+        self.assertEqual(s['position_limits']['effective_max_positions'],2)
 
 
 if __name__=='__main__':
