@@ -14,7 +14,7 @@ import time
 from .core import Config, Rules, dec, encode, size, closed_bars, strategy, BAR_MS
 from .market import BinancePublic
 from .execution_sizing import buffered_size, modeled_fill_risk
-from .adaptive_risk import adaptive_stop, risk_allowance, VERSION
+from .adaptive_risk import adaptive_stop, portfolio_room, risk_allowance, VERSION
 from . import testnet_limits as L
 from .research import reward_risk
 from .testnet import DemoClient, Coordinator, Journal, Rejected, Uncertain, ORDER, ALGO, TERMINAL
@@ -23,7 +23,7 @@ from .testnet_smoke import setup
 SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
-        'risk_cap':str(L.RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
+        'risk_cap':str(L.RISK_CAP),'portfolio_risk_cap':str(L.PORTFOLIO_RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
         'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':3,
         'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
@@ -147,6 +147,10 @@ def exit_once(c,entry,pos):
     return 'EXIT_RECONCILIATION'
 
 STOP_VISIBILITY_GRACE_MS=30000
+# Locks that stop new trades but never market-close an open, protected one: the
+# fault is in selecting the next trade, not in the position or the account.
+# 2026-09-20: a TypeError while scanning force-exited a healthy NEARUSDT trade.
+NON_FORCING_LOCKS=('SELECTION_REVIEW',)
 
 def verify_protection(c, name, opposite, price):
     """Persist sanitized GET evidence; ACK alone is never protection proof."""
@@ -198,7 +202,16 @@ def reconcile(c,force_exit=False):
     symbol=c.plan()['symbol']
     p=c.plan()
     if c.j.get('entry') is None:
-        c.preflight(p)
+        try:
+            c.preflight(p)
+        except ValueError as exc:
+            # No entry POST exists yet ('entry' is journaled before sending), so a
+            # failed pre-entry check is a skipped trade, not an uncertain account.
+            # 2026-09-19 UNIUSDT: raising here locked the pilot for 14h.
+            reason=str(exc)[:200]
+            if c.j.get('aborted') is None:
+                c.j.put('aborted',{'at_ms':now_ms(),'reason':reason})
+            return 'ABORTED_BEFORE_ENTRY',reason
         c.once('entry',ORDER,dict(symbol=symbol,side=p['side'],positionSide='BOTH',
             type='MARKET',quantity=p['quantity'],newClientOrderId=c.cid('entry')))
     try:
@@ -338,8 +351,8 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
     s=book.s
     if type(limit) is not int or not 1<=limit<=POLICY['max_positions']:
         raise ValueError('INVALID_SLOT_LIMIT')
-    if s.get('seen_ms')==stamp:return [] if limit>1 else None
-    if not 0<=t-stamp<=CFG.max_data_age_ms:return [] if limit>1 else None
+    if s.get('seen_ms')==stamp:return []
+    if not 0<=t-stamp<=CFG.max_data_age_ms:return []
     scan=read_scan(stamp=t,full=True)
     if scan.get('status')!='current' or not 0<=t-scan.get('started_ms',0)<=120000:
         s['last_selection']={'at_ms':t,'status':'WAIT_FRESH_SCAN'}
@@ -347,7 +360,7 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
         # the candle are usable. Do not spend the 60s account-check gate on a
         # scan that is not ready yet: retry on the next 10s tick instead.
         s['last_scan_ms']=0
-        return [] if limit>1 else None
+        return []
     candidates=[r for r in scan.get('rows',[]) if r.get('market')=='USD-M'
                 and r.get('quote')=='USDT' and r.get('contract')=='PERPETUAL'
                 and r.get('decision')=='CANDIDATE' and r.get('candle_close_ms')==stamp
@@ -399,10 +412,12 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             rule=Rules.from_exchange(demo[symbol])
             reference=dec(api.call('GET','/fapi/v1/ticker/price',symbol=symbol)['price'])
             signal,stop_evidence=adaptive_stop(signal,bars)
-            total_cap,risk_evidence=risk_allowance(s)
-            remaining=max(dec(0),total_cap-risk_reserved-sum((dec(x['modeled_risk']) for x in selected),dec(0)))
-            slots_left=limit-len(selected)
-            cap=remaining/slots_left if slots_left else dec(0)
+            trade_cap,risk_evidence=risk_allowance(s)
+            # Each trade may use the full per-trade cap; only the portfolio total
+            # is shared (previously the per-trade cap was split by free slots,
+            # so the first 2 USDT trade was sized at 0.67 USDT).
+            remaining=max(dec(0),portfolio_room(s)-risk_reserved-sum((dec(x['modeled_risk']) for x in selected),dec(0)))
+            cap=min(trade_cap,remaining)
             if cap<=0:raise ValueError('PORTFOLIO_RISK_EXHAUSTED')
             s['risk_assessment']=risk_evidence
             plan=buffered_size(signal,reference,min(dec(s['equity']),L.VIRTUAL_EQUITY),rule,CFG,risk_cap=cap)
@@ -433,12 +448,14 @@ def multi_candidate(api,public,book,limit=1,exclude=(),risk_reserved=dec(0),busy
             selection.update(symbol=selected[0]['symbol'],side=selected[0]['side'],
                              modeled_risk=selected[0]['modeled_risk'])
     book.save({'event':'MARKET_SELECTION','selection':selection})
-    if limit==1:return selected[0] if selected else None
+    # Always a list: with one free slot the caller used to get a bare dict or
+    # None and iterating it raised TypeError (2026-09-20 NEARUSDT).
     return selected
 
 def candidate(api,public,book):
     if book.s['policy'].get('execution_universe')=='ALL_USDT_PERPETUAL':
-        return multi_candidate(api,public,book)
+        plans=multi_candidate(api,public,book)
+        return plans[0] if plans else None
     t=now_ms()
     bars=closed_bars(public.get('/fapi/v1/klines',symbol=SYMBOL,interval='15m',limit=200),t)
     stamp=t//BAR_MS*BAR_MS-1
@@ -501,7 +518,8 @@ def tick(book,api,public):
             c=Coordinator(j,api)
             symbol=c.plan()['symbol']
             if slot.get('symbol',symbol)!=symbol:raise ValueError('Active symbol mismatch')
-            force=bool(s['lock']) or t-slot['started_ms']>=POLICY['hold_ms']
+            force=(bool(s['lock']) and s['lock'] not in NON_FORCING_LOCKS
+                   or t-slot['started_ms']>=POLICY['hold_ms'])
             phase,data=reconcile(c,force_exit=force)
             slot['phase']=phase
             if phase=='CLOSED':
@@ -513,6 +531,9 @@ def tick(book,api,public):
                     s.setdefault('adaptive_results',[]).append({'net':str(net),'risk':plan['modeled_risk']})
                 settle(book,net,details,slot)
                 risk_check(s,t)
+            elif phase=='ABORTED_BEFORE_ENTRY':
+                s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
+                book.save({'event':'PLAN_ABORTED','symbol':symbol,'reason':data})
             elif phase=='NO_FILL':
                 s['active']=[x for x in active_slots(s) if x.get('file')!=slot.get('file')]
                 s['lock']='NO_FILL_REVIEW'
@@ -546,7 +567,14 @@ def tick(book,api,public):
         s['lock']='UNOWNED_ACCOUNT_STATE';book.save();return
     reserved=sum((dec(x.get('modeled_risk','0')) for x in slots),dec(0))
     busy_sides={x['side'] for x in slots if x.get('side')}
-    plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
+    try:
+        plans=multi_candidate(api,public,book,limit=capacity,exclude=owned_symbols,risk_reserved=reserved,busy_sides=busy_sides)
+    except Exception as exc:
+        s['error']=type(exc).__name__
+        s['lock']=s['lock'] or 'SELECTION_REVIEW'
+        s['phase']='LOCKED'
+        book.save({'event':'SELECTION_FAILED','type':s['error'],'message':str(exc)[:300]})
+        return
     for p in plans:
         if now_ms()-p['signal_observed_ms']>60000:
             book.save('STALE_PLAN_SKIPPED');break
@@ -573,7 +601,12 @@ def tick(book,api,public):
                 s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
                 book.save({'event':'PLAN_REJECTED','symbol':p['symbol'],'reason':str(exc)})
                 continue
-            slot['phase']=reconcile(c)[0]
+            phase,data=reconcile(c)
+            slot['phase']=phase
+            if phase=='ABORTED_BEFORE_ENTRY':
+                s['active']=[x for x in active_slots(s) if x.get('file')!=filename]
+                book.save({'event':'PLAN_ABORTED','symbol':p['symbol'],'reason':data})
+                continue
         book.save()
     s['phase']='ACTIVE_'+str(len(active_slots(s))) if active_slots(s) else 'WAIT_SIGNAL'
     s['error']=None;book.save()
@@ -627,7 +660,7 @@ def main():
                 if isinstance(exc,Rejected):book.s['error']+=':'+str(exc.code)
                 book.s['lock']=book.s['lock'] or 'API_OR_STATE_REVIEW'
                 book.s['phase']='REVIEW'
-                book.save({'event':'ERROR','type':book.s['error']})
+                book.save({'event':'ERROR','type':book.s['error'],'message':str(exc)[:300]})
                 delay=60
             print(encode({k:book.s[k] for k in ('phase','equity','closed_trades','lock','error','last_check_ms')}),flush=True)
             time.sleep(delay)

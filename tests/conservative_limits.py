@@ -9,7 +9,7 @@ from unittest import mock
 from gptsalov import testnet_limits as L
 from gptsalov.core import dec
 
-CONSERVATIVE = dict(RISK_CAP=dec('.25'), RISK_FRACTION=dec('.005'), NOTIONAL_CAP=dec('25'),
+CONSERVATIVE = dict(RISK_CAP=dec('.25'), PORTFOLIO_RISK_CAP=dec('.25'), RISK_FRACTION=dec('.005'), NOTIONAL_CAP=dec('25'),
                     CASH_FRACTION=dec('.5'), MAX_LEVERAGE=2, DAILY_LOSS=dec('.02'), MAX_DRAWDOWN=dec('.08'))
 _patch = mock.patch.multiple(L, **CONSERVATIVE)
 

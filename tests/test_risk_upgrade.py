@@ -80,7 +80,7 @@ class UpgradeTests(unittest.TestCase):
              patch('gptsalov.multiagent_gate.evaluate',return_value=(True,{'strategy_quality':{'atr':'1'}})) as gate, \
              patch.object(p,'adaptive_stop',return_value=(signal,{'version':'atr-structure-v1'})) as stop, \
              patch.object(p,'buffered_size',return_value=sized):
-            result=p.multi_candidate(api,public,book)
+            result=(p.multi_candidate(api,public,book) or [None])[0]
         self.assertEqual(result['risk_model'],VERSION)
         self.assertEqual(result['stop_model'],'atr-structure-v1')
         self.assertEqual(result['symbol'],'BTCUSDT')

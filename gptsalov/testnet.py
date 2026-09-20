@@ -23,6 +23,9 @@ ALGO = '/fapi/v1/algoOrder'
 TERMINAL = {'FILLED','CANCELED','EXPIRED','EXPIRED_IN_MATCH','REJECTED'}
 
 
+
+LEVERAGE_VISIBILITY_WAITS_S=(0.25,0.5,1.0)
+
 class Uncertain(RuntimeError):
     """Request may have executed; reconcile, never blindly resubmit."""
 
@@ -267,10 +270,16 @@ class Coordinator:
                 # Once only: after timeout/restart, GET must prove the setting.
                 self.once('leverage','/fapi/v1/leverage',
                     dict(symbol=p['symbol'],leverage=p['leverage']))
-            settings=self.api.call('GET','/fapi/v1/symbolConfig',symbol=p['symbol'])
-            config=next(x for x in settings if x['symbol']==p['symbol'])
-            if config['marginType'].upper()!='ISOLATED' or int(config['leverage'])!=p['leverage']:
-                raise ValueError('Dynamic leverage not confirmed')
+            # symbolConfig can lag a just-ACKed leverage change (read-after-write,
+            # 2026-09-19 UNIUSDT). Re-read briefly; never re-POST, never enter unconfirmed.
+            for wait in LEVERAGE_VISIBILITY_WAITS_S+(None,):
+                settings=self.api.call('GET','/fapi/v1/symbolConfig',symbol=p['symbol'])
+                config=next(x for x in settings if x['symbol']==p['symbol'])
+                if config['marginType'].upper()=='ISOLATED' and int(config['leverage'])==p['leverage']:
+                    break
+                if wait is None:
+                    raise ValueError('Dynamic leverage not confirmed')
+                time.sleep(wait)
             latest=dec(self.api.call('GET','/fapi/v1/ticker/price',symbol=p['symbol'])['price'])
             if abs(latest/dec(p['reference'])-1)>dec('.005'):
                 raise ValueError('Entry drift during risk checks')
