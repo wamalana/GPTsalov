@@ -100,10 +100,21 @@ class PilotTests(unittest.TestCase):
     def test_batch_limit_and_identity(self):
         with TemporaryDirectory() as d:
             b=Book(d,'test')
-            for _ in range(3):settle(b,dec('.1'),{})
+            for _ in range(29):settle(b,dec('.1'),{})
+            self.assertIsNone(b.s['lock'])
+            settle(b,dec('.1'),{})
             self.assertEqual(b.s['lock'],'PILOT_BATCH_COMPLETE')
             b.close()
             with self.assertRaises(ValueError):Book(d,'different')
+
+    def test_thirty_day_limit_preserves_existing_batch_start(self):
+        with TemporaryDirectory() as d:
+            b=Book(d,'test');self.addCleanup(b.close)
+            start=b.s['created_ms']
+            risk_check(b.s,start+30*86400000-1)
+            self.assertIsNone(b.s['lock'])
+            risk_check(b.s,start+30*86400000)
+            self.assertEqual(b.s['lock'],'PILOT_TIME_COMPLETE')
 
     def test_incomplete_fills_refused(self):
         with TemporaryDirectory() as d:

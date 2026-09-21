@@ -8,10 +8,10 @@ class BatchTests(unittest.TestCase):
    b=Book(d,'test')
    try:
     b.s.update(closed_trades=3,batch_start_closed_trades=3,batch_started_ms=b.s['created_ms'],balance='49.70849554',equity='49.70849554')
-    for _ in range(2):settle(b,dec('.01'),{})
+    for _ in range(POLICY['max_trades']-1):settle(b,dec('.01'),{})
     self.assertIsNone(b.s['lock'])
     settle(b,dec('.01'),{})
-    self.assertEqual(b.s['closed_trades'],6)
+    self.assertEqual(b.s['closed_trades'],3+POLICY['max_trades'])
     self.assertEqual(b.s['lock'],'PILOT_BATCH_COMPLETE')
    finally:b.close()
  def test_batch_clock_and_daily_risk(self):
