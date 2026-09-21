@@ -24,8 +24,8 @@ SYMBOL='ETHUSDT'
 CFG=Config(initial_equity=dec(50),max_notional_fraction=dec('.5'))
 POLICY={'schema':1,'environment':'testnet','symbol':SYMBOL,'budget':'50',
         'risk_cap':str(L.RISK_CAP),'portfolio_risk_cap':str(L.PORTFOLIO_RISK_CAP),'risk_fraction':str(L.RISK_FRACTION),'daily_loss':str(L.DAILY_LOSS),
-        'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':3,
-        'max_positions':3,'duration_ms':86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
+        'max_drawdown':str(L.MAX_DRAWDOWN),'stop_model':VERSION,'notional_cap':str(L.NOTIONAL_CAP),'min_rr':'1','max_trades':30,
+        'max_positions':3,'duration_ms':30*86400000,'hold_ms':14400000,'config_hash':CFG.fingerprint}
 
 def now_ms(): return int(time.time()*1000)
 def day(t): return datetime.fromtimestamp(t/1000,ZoneInfo('Asia/Bangkok')).date().isoformat()

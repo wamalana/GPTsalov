@@ -1,4 +1,18 @@
-# Bounded Testnet strategy pilot v1
+# Bounded Testnet strategy pilot
+
+## Current multi-market deployment (2026-09-21)
+
+The owner-approved batch limit is **30 closed trades or 30 days**, whichever
+comes first. Existing batch start times and trade counters are preserved when
+extending the current ledger; this is not an automatic recurring reset.
+Risk and execution limits are unchanged: up to 2 USDT modeled risk per trade,
+4 USDT across open trades, one long and one short, 10% daily loss, 25% drawdown,
+three consecutive losses requiring review, and a four-hour position hold limit.
+Other risk/review locks can stop trading before the batch limit is reached.
+No trades are forced to meet the count. Production trading remains unsupported.
+
+## Original single-symbol v1 reference (historical limits)
+
 Testnet-only ETHUSDT; production orders are unsupported. This is a supervised
 development pilot, not proven profitable or ready for real funds.
 
