@@ -100,7 +100,7 @@ class PilotTests(unittest.TestCase):
     def test_batch_limit_and_identity(self):
         with TemporaryDirectory() as d:
             b=Book(d,'test')
-            for _ in range(3):settle(b,dec('.1'),{})
+            for _ in range(POLICY['max_trades']):settle(b,dec('.1'),{})
             self.assertEqual(b.s['lock'],'PILOT_BATCH_COMPLETE')
             b.close()
             with self.assertRaises(ValueError):Book(d,'different')
