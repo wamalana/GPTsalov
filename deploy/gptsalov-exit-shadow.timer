@@ -1,0 +1,8 @@
+[Unit]
+Description=Collect paired exit simulations every minute
+[Timer]
+OnBootSec=30
+OnUnitInactiveSec=60
+Unit=gptsalov-exit-shadow.service
+[Install]
+WantedBy=timers.target
