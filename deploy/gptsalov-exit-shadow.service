@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov paired exit simulation (public data, no orders)
+After=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wamalana/GPTsalov/exit-shadow-current
+ExecStart=/usr/bin/python3 -m gptsalov.exit_shadow run --source /home/wamalana/GPTsalov/data/multiagent-testnet-v8 --db /home/wamalana/GPTsalov/data/exit-shadow-v1/ledger.db
+TimeoutStartSec=600
+UMask=0077
+MemoryMax=192M
+CPUQuota=30%
+NoNewPrivileges=yes
+StandardOutput=null
+StandardError=journal
