@@ -10,7 +10,7 @@ import time
 from .core import BAR_MS, Config, dec, encode, hourly, closed_bars, strategy
 from .market import BinancePublic
 
-VERSION = 'shadow-rules-v1'
+VERSION = 'shadow-news-v2'
 
 
 def read_pilot(path):
@@ -20,7 +20,7 @@ def read_pilot(path):
     return {k: state.get(k) for k in ('lock', 'active', 'error', 'last_check_ms', 'phase')}
 
 
-def analyze(bars, state, now, symbol='ETHUSDT', scan_mode=False):
+def analyze(bars, state, now, symbol='ETHUSDT', scan_mode=False, news_context=None):
     """All rules inspect the same closed candles. Votes are not probabilities."""
     cfg = Config()
     votes = []
@@ -64,14 +64,19 @@ def analyze(bars, state, now, symbol='ETHUSDT', scan_mode=False):
     else:
         for agent in ('trend','momentum','volatility'):
             vote(agent, 'ABSTAIN', 'INVALID_INPUT')
-    vote('news', 'ABSTAIN', 'NOT_CONNECTED')
+    if news_context is None:
+        from .news_analysis import context
+        news_context = context(symbol, now)
+    vote('news', news_context['verdict'], news_context['reason'],
+         status=news_context['status'], llm_status=news_context['llm_status'],
+         article_ids=[a['id'] for a in news_context['articles']], advisory_only=True)
     blocked = any(v['verdict'] == 'VETO' for v in votes)
-    return dict(version=VERSION, mode='shadow', observed_ms=now,
+    return dict(version=VERSION, mode='shadow', observed_ms=now, symbol=symbol,
                 candle_close_ms=bars[-1].close_ms if bars else None,
                 baseline_signal=asdict(signal) if signal else None, votes=votes,
                 decision='BLOCKED' if blocked else 'RESEARCH_CANDIDATE' if signal else 'WAIT',
-                execution_enabled=False, llm_enabled=False,
-                limitations=['news_not_connected','no_execution_sizing','not_a_profitability_evaluation'])
+                execution_enabled=False, llm_enabled=news_context['llm_enabled'], news_context=news_context,
+                limitations=['news_advisory_only','headlines_only','no_execution_sizing','not_a_profitability_evaluation'])
 
 
 def record(path, result):
@@ -79,7 +84,7 @@ def record(path, result):
     with closing(sqlite3.connect(path)) as db, db:
         db.execute('CREATE TABLE IF NOT EXISTS observations(version TEXT, candle INTEGER, data TEXT, PRIMARY KEY(version,candle))')
         db.execute('INSERT OR IGNORE INTO observations VALUES(?,?,?)',
-                   (VERSION, result['candle_close_ms'], encode(result)))
+                   (VERSION+':'+result.get('symbol', 'ETHUSDT'), result['candle_close_ms'], encode(result)))
 
 
 def main():
@@ -88,6 +93,7 @@ def main():
     p.add_argument('--output-db', required=True)
     p.add_argument('--cycles', type=int, default=1, help='0 means continuous')
     p.add_argument('--ai-config', help='Optional owned 0600 OpenAI config; shadow review only')
+    p.add_argument('--symbols', nargs='+', default=['ETHUSDT'], help='Observation symbols, no orders')
     args = p.parse_args()
     if args.cycles < 0 or Path(args.pilot_db).resolve() == Path(args.output_db).resolve():
         p.error('Invalid cycles or output aliases pilot database')
@@ -104,14 +110,15 @@ def main():
         server = int(client.get('/fapi/v1/time')['serverTime'])
         if abs(server-now) > 5000:
             raise ValueError('Clock skew')
-        bars = closed_bars(client.get('/fapi/v1/klines',symbol='ETHUSDT',interval='15m',limit=200), server)
-        result = analyze(bars, read_pilot(args.pilot_db), int(time.time()*1000))
-        if args.ai_config:
-            from .ai_review import review
-            result['ai_review']=review(result,args.ai_config,str(Path(args.output_db).with_suffix('.ai.db')))
-            result['llm_enabled']=True
-        record(args.output_db, result)
-        print(encode(result), flush=True)
+        for symbol in args.symbols:
+            bars = closed_bars(client.get('/fapi/v1/klines',symbol=symbol,interval='15m',limit=200), server)
+            result = analyze(bars, read_pilot(args.pilot_db), int(time.time()*1000), symbol=symbol)
+            if args.ai_config:
+                from .ai_review import review
+                result['ai_review']=review(result,args.ai_config,str(Path(args.output_db).with_suffix('.ai.db')))
+                result['llm_enabled'] = result['llm_enabled'] or result['ai_review']['status'] == 'COMPLETED'
+            record(args.output_db, result)
+            print(encode(result), flush=True)
         count += 1
         if args.cycles == 0 or count < args.cycles:
             time.sleep(120)

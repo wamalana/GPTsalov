@@ -157,6 +157,10 @@ def run(path=DB,pilot=PILOT,client=None):
                            score=float(result['baseline_signal']['score']) if result['baseline_signal'] else 0,
                            direction=votes.get('trend'),observed_ms=clock(),
                            portfolio_gate=votes.get('risk'),reason=None)
+                context = result.get('news_context', {})
+                row['news_context'] = {k: context.get(k) for k in
+                    ('status','llm_status','llm_enabled','model','verdict','reason','advisory_only')}
+                row['news_context']['article_ids'] = [a['id'] for a in context.get('articles', [])]
                 if votes.get('data')!='PASS':row.update(status='error',reason='INVALID_OR_STALE_CANDLES')
             except Halt:raise
             except Exception as e:row.update(status='error',reason=type(e).__name__)

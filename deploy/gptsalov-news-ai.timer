@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly GPTsalov headline AI research
+
+[Timer]
+OnCalendar=*-*-* *:03:00
+Persistent=true
+Unit=gptsalov-news-ai.service
+
+[Install]
+WantedBy=timers.target

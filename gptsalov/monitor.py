@@ -13,6 +13,8 @@ import threading
 import time
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from .news import snapshot as news_snapshot
+from .news_analysis import dashboard as news_dashboard
 
 STATIC = Path(__file__).with_name('dashboard')
 SERVICES = ('gptsalov-paper.service', 'gptsalov-forward.service')
@@ -91,6 +93,7 @@ def ledger_status(path, timestamp):
 
 def collect(db_path, service_reader=service_status, timestamp=None):
     stamp = now_ms() if timestamp is None else timestamp
+    news = news_dashboard(news_snapshot(stamp=stamp), stamp)
     ledger = ledger_status(db_path, stamp)
     services = {unit: service_reader(unit) for unit in SERVICES}
     paper_active = services[SERVICES[0]]['status'] == 'active'
@@ -103,9 +106,9 @@ def collect(db_path, service_reader=service_status, timestamp=None):
                 {'id': 'strategy', 'name': 'Strategy Lab', 'status': state, 'kind': 'paper_component'},
                 {'id': 'risk', 'name': 'Risk Guard', 'status': state, 'kind': 'paper_component'},
                 {'id': 'execution', 'name': 'Paper Trader', 'status': state, 'kind': 'paper_component'},
-                {'id': 'news', 'name': 'News Owl', 'status': 'not_connected', 'kind': 'unconnected'},
+                {'id': 'news', 'name': 'News Owl', 'status': news['status'], 'kind': 'llm_news_context' if news['llm_connected'] else 'news_collector'},
                 {'id': 'testnet', 'name': 'Testnet Pilot', 'status': 'not_verified', 'kind': 'unconnected'}],
-            'testnet': 'not_verified', 'scheduled_reports': False}
+            'testnet': 'not_verified', 'news': news, 'scheduled_reports': False}
 
 
 class Snapshot:
