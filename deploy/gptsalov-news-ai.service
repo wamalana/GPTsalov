@@ -1,0 +1,12 @@
+[Unit]
+Description=GPTsalov bounded RSS headline AI research (no orders)
+After=network-online.target gptsalov-news.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/GPTsalov/news-ai-current
+ExecStart=/usr/bin/python3 -m gptsalov.news_analysis --config %h/.config/gptsalov/openai.json
+UMask=0077
+TimeoutStartSec=90
+NoNewPrivileges=true
+
