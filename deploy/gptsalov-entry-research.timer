@@ -1,0 +1,9 @@
+[Unit]
+Description=Evaluate registered GPTsalov research signals every two minutes
+[Timer]
+OnBootSec=90
+OnUnitInactiveSec=120
+RandomizedDelaySec=5
+Unit=gptsalov-entry-research.service
+[Install]
+WantedBy=timers.target

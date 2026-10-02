@@ -114,7 +114,15 @@ def summarize(data):
                     analyzed=sum(r['status']=='analyzed' for r in subset))
     data['updated_ms']=clock()
 
-def run(path=DB,pilot=PILOT,client=None):
+def run(path=DB,pilot=PILOT,client=None,research_path=None):
+    recorder=None
+    if research_path:
+        from .entry_research import Recorder
+        for other in (path,pilot):
+            target,source=Path(research_path).resolve(),Path(other).resolve()
+            if target==source or (target.exists() and source.exists() and target.samefile(source)):
+                raise ValueError('Research database must be separate from scanner and pilot')
+        recorder=Recorder(research_path)
     client=client or Client()
     old=read(path)
     if clock()<old.get('cooldown_until_ms',0):return old
@@ -162,6 +170,8 @@ def run(path=DB,pilot=PILOT,client=None):
                     ('status','llm_status','llm_enabled','model','verdict','reason','advisory_only')}
                 row['news_context']['article_ids'] = [a['id'] for a in context.get('articles', [])]
                 if votes.get('data')!='PASS':row.update(status='error',reason='INVALID_OR_STALE_CANDLES')
+                if recorder and row['status']=='analyzed':
+                    recorder.observe(data['started_ms'],row,bars,clock())
             except Halt:raise
             except Exception as e:row.update(status='error',reason=type(e).__name__)
             if index%20==0:summarize(data);write(path,data)
@@ -170,6 +180,11 @@ def run(path=DB,pilot=PILOT,client=None):
         data.update(status='partial',halt=str(e),cooldown_until_ms=clock()+30*60000)
     finally:
         data['finished_ms']=clock()
+        if recorder:
+            summarize(data)
+            recorder.finish(data)
+            data['entry_research']={'status':'ERROR' if recorder.error else 'RECORDED',
+                                    'error_type':recorder.error,'execution_enabled':False}
         summarize(data);write(path,data)
     return data
 
@@ -179,8 +194,9 @@ def main():
     p.add_argument('--pilot-db',default=PILOT)
     p.add_argument('--read',action='store_true')
     p.add_argument('--full',action='store_true')
+    p.add_argument('--research-db',help='Separate prospective entry study database; never executes orders')
     args=p.parse_args()
-    data=read(args.db,full=args.full) if args.read else run(args.db,args.pilot_db)
+    data=read(args.db,full=args.full) if args.read else run(args.db,args.pilot_db,research_path=args.research_db)
     if not args.full:data.pop('rows',None)
     print(encode(data),flush=True)
 if __name__=='__main__':main()
