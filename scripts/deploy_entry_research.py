@@ -9,6 +9,7 @@ import sys
 import time
 
 FILES = ('gptsalov/entry_research.py','gptsalov/market_scanner.py',
+         'gptsalov/exit_shadow.py','tests/test_exit_shadow.py',
          'tests/test_entry_research.py','ENTRY_RESEARCH.md',
          'deploy/gptsalov-entry-research.service','deploy/gptsalov-entry-research.timer',
          'scripts/deploy_entry_research.py')
@@ -38,6 +39,7 @@ def deploy(stage):
         (release/name).parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(stage/name,release/name)
     subprocess.run([sys.executable,'-m','unittest','discover','-s','tests','-p','test_entry_research.py','-q'],cwd=release,check=True)
+    subprocess.run([sys.executable,'-m','unittest','discover','-s','tests','-p','test_exit_shadow.py','-q'],cwd=release,check=True)
     subprocess.run([sys.executable,'-m','compileall','-q','gptsalov'],cwd=release,check=True)
     units=home/'.config/systemd/user'
     override=units/'gptsalov-market-scanner.service.d/zzzzzzzzzzzzzzzz-entry-research.conf'
