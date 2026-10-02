@@ -45,7 +45,7 @@ def deploy(stage):
     override=units/'gptsalov-market-scanner.service.d/zzzzzzzzzzzzzzzz-entry-research.conf'
     db=base/'data/entry-research-v1/research.db'
     pilot=base/'data/multiagent-testnet-v8/pilot.db'
-    contents={override:'[Service]\nWorkingDirectory='+str(release)+'\nExecStart=\nExecStart=/usr/bin/python3 -m gptsalov.market_scanner --pilot-db '+str(pilot)+' --research-db '+str(db)+'\n'}
+    contents={override:'[Service]\nWorkingDirectory='+str(release)+'\nExecStart=\nExecStart=/usr/bin/python3 -m gptsalov.market_scanner --pilot-db '+str(pilot)+' --research-db '+str(db)+'\nReadWritePaths='+str(db.parent)+'\n'}
     for name in ('gptsalov-entry-research.service','gptsalov-entry-research.timer'):
         contents[units/name]=(release/'deploy'/name).read_text()
     saved={str(p):p.read_text() if p.exists() else None for p in contents}
