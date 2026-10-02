@@ -56,7 +56,7 @@ def deploy(stage):
     scanner_timer_active=ctl('is-active','gptsalov-market-scanner.timer',check=False)=='active'
     if not scanner_timer_active:
         raise ValueError('Existing scanner timer is not active')
-    pilot_before=ctl('show','gptsalov-testnet-pilot.service','-p','WorkingDirectory','-p','MainPID','-p','ExecStart')
+    pilot_before=(ctl('cat','gptsalov-testnet-pilot.service')+ctl('show','gptsalov-testnet-pilot.service','-p','WorkingDirectory','-p','MainPID'))
     backup=base/'data'/('entry-research-deploy-'+stamp);backup.mkdir()
     (backup/'rollback.json').write_text(json.dumps(dict(files=saved,previous_link=previous,release=str(release),source=str(source)),indent=2))
     try:
@@ -76,7 +76,7 @@ def deploy(stage):
         ctl('start','--no-block','gptsalov-market-scanner.service')
         if ctl('is-active','gptsalov-entry-research.timer')!='active':
             raise ValueError('Outcome timer inactive')
-        if ctl('show','gptsalov-testnet-pilot.service','-p','WorkingDirectory','-p','MainPID','-p','ExecStart')!=pilot_before:
+        if (ctl('cat','gptsalov-testnet-pilot.service')+ctl('show','gptsalov-testnet-pilot.service','-p','WorkingDirectory','-p','MainPID'))!=pilot_before:
             raise ValueError('Pilot runtime changed during deployment; investigate')
     except Exception:
         ctl('disable','--now','gptsalov-entry-research.timer',check=False)
