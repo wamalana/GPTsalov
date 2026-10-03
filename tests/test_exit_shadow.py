@@ -4,8 +4,26 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlparse, parse_qs
 
-from gptsalov.exit_shadow import MINUTE, POLICY, simulate, run_cycle, report
+from gptsalov.exit_shadow import MINUTE, POLICY, simulate, run_cycle, report, public_bars
+
+
+class PublicBarsTests(unittest.TestCase):
+    def test_unicode_symbol_is_encoded_as_query_value(self):
+        with patch('gptsalov.exit_shadow.build_opener') as opener:
+            opener.return_value.open.return_value.__enter__.return_value.read.return_value = b'[]'
+            self.assertEqual(public_bars('牛来USDT', 60000, 119999), [])
+            request = opener.return_value.open.call_args.args[0]
+            self.assertEqual(parse_qs(urlparse(request.full_url).query)['symbol'], ['牛来USDT'])
+            self.assertTrue(request.full_url.isascii())
+
+    def test_symbol_separators_are_rejected_before_network(self):
+        with patch('gptsalov.exit_shadow.build_opener') as opener:
+            for symbol in ('BTC&limit=1', '../BTC', 'BTC USDT', 'BTC\nUSDT', '', None):
+                with self.assertRaises(ValueError):
+                    public_bars(symbol, 60000, 119999)
+            opener.assert_not_called()
 
 
 def bar(i,o=100,h=101,l=99,c=100):
