@@ -1,0 +1,14 @@
+[Unit]
+Description=GPTsalov prospective signal outcomes (public data, no orders)
+After=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=%h/GPTsalov/entry-research-current
+ExecStart=/usr/bin/python3 -m gptsalov.entry_research evaluate --db %h/GPTsalov/data/entry-research-v1/research.db
+TimeoutStartSec=180
+UMask=0077
+NoNewPrivileges=yes
+MemoryMax=192M
+CPUQuota=30%
+StandardOutput=journal
+StandardError=journal

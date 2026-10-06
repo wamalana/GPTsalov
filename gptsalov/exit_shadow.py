@@ -5,7 +5,6 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
-import re
 import sqlite3
 import time
 from urllib.parse import urlencode
@@ -21,7 +20,9 @@ POLICY = dict(version=1, horizon_bars=240, trail_activation_r=1,
 
 
 def public_bars(symbol, start, end):
-    if not re.fullmatch('[A-Z0-9]{2,30}', symbol):
+    # Listed Binance symbols can contain Unicode letters (e.g. 牛来USDT).
+    # urlencode below safely encodes them; separators/control characters stay rejected.
+    if not isinstance(symbol, str) or not 2 <= len(symbol) <= 30 or not symbol.isalnum():
         raise ValueError('Invalid symbol')
     params=dict(symbol=symbol, interval='1m', startTime=start,
                 endTime=end, limit=1000)
